@@ -155,7 +155,7 @@ def _make_pidfile():
     try:
         file_handle.write("%s\n" % pid)
         file_handle.flush()
-    except OSError, e:
+    except BebaError, e:
         _fatal("%s: write failed: %s" % (tmpfile, e.strerror))
 
     try:
@@ -167,7 +167,7 @@ def _make_pidfile():
     if _overwrite_pidfile:
         try:
             os.rename(tmpfile, _pidfile)
-        except OSError, e:
+        except BebaError, e:
             _fatal("failed to rename \"%s\" to \"%s\" (%s)"
                    % (tmpfile, _pidfile, e.strerror))
     else:
@@ -175,7 +175,7 @@ def _make_pidfile():
             try:
                 os.link(tmpfile, _pidfile)
                 error = 0
-            except OSError, e:
+            except BebaError, e:
                 error = e.errno
             if error == errno.EEXIST:
                 _check_already_running()
@@ -211,7 +211,7 @@ def _waitpid(pid, options):
     while True:
         try:
             return os.waitpid(pid, options)
-        except OSError, e:
+        except BebaError, e:
             if e.errno == errno.EINTR:
                 pass
             return -e.errno, 0
@@ -220,13 +220,13 @@ def _waitpid(pid, options):
 def _fork_and_wait_for_startup():
     try:
         rfd, wfd = os.pipe()
-    except OSError, e:
+    except BebaError, e:
         sys.stderr.write("pipe failed: %s\n" % os.strerror(e.errno))
         sys.exit(1)
 
     try:
         pid = os.fork()
-    except OSError, e:
+    except BebaError, e:
         sys.stderr.write("could not fork: %s\n" % os.strerror(e.errno))
         sys.exit(1)
 
@@ -238,7 +238,7 @@ def _fork_and_wait_for_startup():
             try:
                 s = os.read(rfd, 1)
                 error = 0
-            except OSError, e:
+            except BebaError, e:
                 s = ""
                 error = e.errno
             if error != errno.EINTR:
@@ -411,7 +411,7 @@ def __read_pidfile(pidfile, delete_if_stale):
                 #
                 # Fortunately, we know the associated pid anyhow.
                 return os.getpid()
-        except OSError:
+        except BebaError:
             pass
 
     try:

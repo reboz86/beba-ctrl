@@ -47,7 +47,7 @@ def make_unix_socket(style, nonblock, bind_path, connect_path):
             # Delete bind_path but ignore ENOENT.
             try:
                 os.unlink(bind_path)
-            except OSError, e:
+            except BebaError, e:
                 if e.errno != errno.ENOENT:
                     return e.errno, None
 
@@ -59,7 +59,7 @@ def make_unix_socket(style, nonblock, bind_path, connect_path):
                     os.fchmod(sock.fileno(), 0700)
                 else:
                     os.chmod("/dev/fd/%d" % sock.fileno(), 0700)
-            except OSError, e:
+            except BebaError, e:
                 pass
         if connect_path is not None:
             try:
@@ -147,7 +147,7 @@ def get_null_fd():
     if null_fd < 0:
         try:
             null_fd = os.open("/dev/null", os.O_RDWR)
-        except OSError, e:
+        except BebaError, e:
             vlog.err("could not open /dev/null: %s" % os.strerror(e.errno))
             return -e.errno
     return null_fd
@@ -173,7 +173,7 @@ def write_fully(fd, buf):
             else:
                 bytes_written += retval
                 buf = buf[:retval]
-        except OSError, e:
+        except BebaError, e:
             return e.errno, bytes_written
 
 

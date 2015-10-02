@@ -1221,9 +1221,9 @@ oxm_types = [
     oxm_fields.NiciraExtended1('reg5', 5, type_desc.Int4),
     oxm_fields.NiciraExtended1('reg6', 6, type_desc.Int4),
     oxm_fields.NiciraExtended1('reg7', 7, type_desc.Int4),
-    #Openstate experimenter fields
-    oxm_fields.OpenStateExperimenter('flags', 0, type_desc.Int4),
-    oxm_fields.OpenStateExperimenter('state', 1, type_desc.Int4)
+    #Beba experimenter fields
+    oxm_fields.BebaExperimenter('flags', 0, type_desc.Int4),
+    oxm_fields.BebaExperimenter('state', 1, type_desc.Int4)
 ]
 
 oxm_fields.generate(__name__)

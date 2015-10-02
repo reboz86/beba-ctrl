@@ -1,7 +1,7 @@
-OpenState
+Beba
 =========
 
-This is an implementation of an OpenState controller based on the source code of RYU, an OpenFlow compatible controller available at https://github.com/osrg/ryu. For any information about OpenState please check the home page of the project at http://openstate-sdn.github.io/.
+This is an implementation of an Beba controller based on the source code of RYU, an OpenFlow compatible controller available at https://github.com/osrg/ryu. For any information about Beba please check the home page of the project at http://www.beba-project.eu/.
 
 
 

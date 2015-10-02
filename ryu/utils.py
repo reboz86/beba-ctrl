@@ -56,7 +56,7 @@ def _likely_same(a, b):
         else:
             if os.path.samefile(a, b):
                 return True
-    except OSError:
+    except BebaError:
         # m.__file__ is not always accessible.  eg. egg
         return False
     if chop_py_suffix(a) == chop_py_suffix(b):

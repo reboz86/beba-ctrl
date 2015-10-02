@@ -3,7 +3,7 @@ from ryu.lib.pack_utils import msg_pack_into
 from ryu.ofproto.ofproto_parser import StringifyMixin, MsgBase, msg_str_attr
 import ryu.ofproto.ofproto_v1_3_parser as ofproto_parser
 import ryu.ofproto.ofproto_v1_3 as ofproto
-import ryu.ofproto.openstate_v1_0 as osproto
+import ryu.ofproto.beba_v1_0 as osproto
 
 def OFPExpActionSetState(state, table_id, hard_timeout=0, idle_timeout=0, hard_rollback=0, idle_rollback=0, state_mask=0xffffffff):
     """ 
@@ -594,20 +594,20 @@ def substate(state,section,sec_count):
 
 ###############################################################################################################################
 '''
-[OpenState to Open vSwitch wrapper]
+[Beba to Open vSwitch wrapper]
 
-An OpenState application can be run by an Open vSwitch softswitch without OpenState support by adding
-'@OS2OVSWrapper' just before def switch_features_handler(self, ev), after '@set_ev_cls()'
+An Beba application can be run by an Open vSwitch softswitch without Beba support by adding
+'@Beba2OVSWrapper' just before def switch_features_handler(self, ev), after '@set_ev_cls()'
 
 $ sudo mn --topo single,4 --mac --switch ovsk --controller remote    --->    starts Open vSwitch (OpenFlow only)
-$ sudo mn --topo single,4 --mac --switch user --controller remote    --->    starts ofsoftswitch13 (OpenFlow + OpenState)
+$ sudo mn --topo single,4 --mac --switch user --controller remote    --->    starts ofsoftswitch13 (OpenFlow + Beba)
 $ ryu-manager [app_name]
 
 
 How stuff works:
-we need to intercept any message containing OpenState code (OpenState messages, FlowMod matching on 'state', FlowMod containing
+we need to intercept any message containing Beba code (Beba messages, FlowMod matching on 'state', FlowMod containing
 SetState action, ...). The best way is intercepting any call to send_msg() in order to filter/modify/drop the outgoing message.
-We don't want to touch Ryu code and we'd like minimal modifications to OpenState applications code.
+We don't want to touch Ryu code and we'd like minimal modifications to Beba applications code.
 send_msg() is a method from Datapath class, so we need to extend it to override send_msg().
 The Datapath object 'datapath' should be casted to a OVSDatapath object and the best moment is when the controller
 communicates with the switch for the first time (so in switch_features_handler()).
@@ -620,14 +620,14 @@ from ryu.controller.controller import Datapath
 from sets import Set
 
 '''
-OVSDatapath class inherits Datapath class to override send_msg() method in order to intercept and adapt OpenState messages.
+OVSDatapath class inherits Datapath class to override send_msg() method in order to intercept and adapt Beba messages.
 Finally the original send_msg() is called, when appropriate (e.g. messages OFPExpMsgConfigureStatefulTable and OFPExpMsgKeyExtract
 just update OVSDatapath internal state withtout being sent to the switch)
 '''
 class OVSDatapath(Datapath):
     def send_msg(self, msg):
         '''
-        In OpenState a stateful stage has a state table and a flow table with the same table_id.
+        In Beba a stateful stage has a state table and a flow table with the same table_id.
         In Open vSwitch a stateful stage has two separated flow tables with adjacent table_ids
         '''
         def get_state_table_id(table_id):
@@ -745,7 +745,7 @@ class OVSDatapath(Datapath):
                 ''' TODO: in Open vSwitch, global states are a flow entry in the first table => we could send a OFPMultipartRequest, maybe '''
             return
         elif isinstance(msg,ofproto_parser.OFPFlowMod):
-            # check for the presence of any OpenState action in OFPInstructionActions
+            # check for the presence of any Beba action in OFPInstructionActions
             for instr in msg.instructions:
                 if isinstance(instr, ofproto_parser.OFPInstructionActions) and instr.type in [ofproto.OFPIT_WRITE_ACTIONS,ofproto.OFPIT_APPLY_ACTIONS]:
                     filtered_action_set = []
@@ -768,7 +768,7 @@ class OVSDatapath(Datapath):
                             elif act_type == osproto.OFPAT_EXP_SET_FLAG:
                                 ''' TODO we could add an action learn() that install a flow entry in table 0 which sets reg8=global state value, with mask '''
                         else:
-                            # non-OpenState actions are left unchanged
+                            # non-Beba actions are left unchanged
                             filtered_action_set.append(act)
                     instr.actions = filtered_action_set
                 elif isinstance(instr, ofproto_parser.OFPInstructionGotoTable):
@@ -788,7 +788,7 @@ class OVSDatapath(Datapath):
 
                         self.stages_in_use.add(instr.table_id)
                     instr.table_id = get_state_table_id(instr.table_id)
-            # check for OpenState match
+            # check for Beba match
             new_fields = []
             for field in msg.match._fields2:
                 if field[0]=='state':
@@ -823,7 +823,7 @@ class OVSDatapath(Datapath):
                             elif act_type == osproto.OFPAT_EXP_SET_FLAG:
                                 ''' TODO we could add an action learn() that install a flow entry in table 0 which sets reg8=global state value, with mask '''
                         else:
-                            # non-OpenState actions are left unchanged
+                            # non-Beba actions are left unchanged
                             filtered_action_set.append(act)
                     buck.actions = filtered_action_set
 
@@ -918,14 +918,14 @@ class OVSDatapath(Datapath):
         #    d[match_field]=value
         return
 '''
-By decorating 'switch_features_handler()' with '@OS2OVSWrapper', before the execution of the user-defined switch_features_handler()
+By decorating 'switch_features_handler()' with '@Beba2OVSWrapper', before the execution of the user-defined switch_features_handler()
 the decorator obtains the Datapath instance 'datapath', casts it to an OVSDatapath object and initializes lookup_scope and update_scope dict.
 Finally it executes the user-defined switch_features_handler().
 NB: The 'datapath' instance returned to the handler of any subsequent events (e.g. packet_in_handler) is the same, so even if
 the 2 scopes dict have been configured by an OFPExpMsgKeyExtract in a previous event handler, they are still available to
 transform an OFPExpActionSetState in a NXActionLearn.
 '''
-def OS2OVSWrapper(function):
+def Beba2OVSWrapper(function):
     def inner(self, ev):
         datapath = ev.msg.datapath
         datapath.__class__ = OVSDatapath

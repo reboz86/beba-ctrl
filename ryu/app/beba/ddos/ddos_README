@@ -2,12 +2,12 @@ Premessa: meglio non far vedere l'intera state table con dpctl perchè ho troppe
 Premessa 2: gli idle timeout sono di 5 secondi
 Premessa 3: le opzioni "-o 28" e "-T af11" servono a settare il DSCP al valore che per noi è di default già in uscita dall'host, senza farlo fare allo switch
 
-Requisiti oltre alla macchina pulita come da sito OpenState:
+Requisiti oltre alla macchina pulita come da sito Beba:
 sudo apt-get install hping3
 
 Aprire 2 terminali nella VM (NB lanciare ssh con l'opzione -X, se no non si aprono gli xterm):
 
-cd ~/ryu/ryu/app/openstate
+cd ~/ryu/ryu/app/beba
 ryu-manager ddos.py
 
 sudo mn --topo single,2 --arp --mac --switch user --controller remote
@@ -17,7 +17,7 @@ sudo mn --topo single,2 --arp --mac --switch user --controller remote
 Da mininet visualizziamo la state table (limitata alla connessione che ci interessa)
 	mininet> sh watch -n1 --color dpctl tcp:127.0.0.1:6634 stats-state table=all tcp_dst=2000 -c
 infine apriamo l'echo server sull'host h2
-	h2# python ~/ryu/ryu/app/openstate/echo_server.py 2000
+	h2# python ~/ryu/ryu/app/beba/echo_server.py 2000
 
 2) Dall'host h1 apriamo una nuova connessione TCP verso l'echo server
 h1# nc -T af11 10.0.0.2 2000

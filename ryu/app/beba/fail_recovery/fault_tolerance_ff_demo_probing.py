@@ -4,21 +4,21 @@ from ryu.controller.handler import MAIN_DISPATCHER, CONFIG_DISPATCHER, HANDSHAKE
 from ryu.controller.handler import set_ev_cls
 import ryu.ofproto.ofproto_v1_3 as ofp
 import ryu.ofproto.ofproto_v1_3_parser as ofparser
-import ryu.ofproto.openstate_v1_0 as osp
-import ryu.ofproto.openstate_v1_0_parser as osparser
+import ryu.ofproto.beba_v1_0 as osp
+import ryu.ofproto.beba_v1_0_parser as osparser
 from ryu.lib.packet import packet
 from ryu.topology import event
 import logging
 from sets import Set
 import time
 import f_t_parser_ff as f_t_parser
-LOG = logging.getLogger('app.openstate.fault_tolerance_ff')
+LOG = logging.getLogger('app.beba.fault_tolerance_ff')
 
-class OSFaultTolerance(app_manager.RyuApp):
+class BebaFaultTolerance(app_manager.RyuApp):
     OFP_VERSIONS = [ofp.OFP_VERSION]
     
     def __init__(self, *args, **kwargs):
-        super(OSFaultTolerance, self).__init__(*args, **kwargs)
+        super(BebaFaultTolerance, self).__init__(*args, **kwargs)
         f_t_parser.generate_flow_entries_dict(GUI=True)
 
         # Associates dp_id to datapath object
