@@ -36,7 +36,7 @@ def abs_file_name(dir_, file_name):
         if dir_ is None or dir_ == "":
             try:
                 dir_ = os.getcwd()
-            except BebaError:
+            except OSError:
                 return None
 
         if dir_.endswith('/'):

@@ -90,7 +90,7 @@ def _unlink(file_):
     try:
         os.unlink(file_)
         return 0
-    except BebaError, e:
+    except OSError, e:
         return e.errno
 
 
