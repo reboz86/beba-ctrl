@@ -5,10 +5,10 @@ from ryu.controller.handler import CONFIG_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 import ryu.ofproto.ofproto_v1_3 as ofp
 import ryu.ofproto.ofproto_v1_3_parser as ofparser
-import ryu.ofproto.openstate_v1_0 as osp
-import ryu.ofproto.openstate_v1_0_parser as osparser
+import ryu.ofproto.beba_v1_0 as osp
+import ryu.ofproto.beba_v1_0_parser as osparser
 
-LOG = logging.getLogger('app.openstate.portknock')
+LOG = logging.getLogger('app.beba.portknock')
 
 """ Last port is the one to be opened after knocking all the others """
 port_list = [10, 11, 12, 13, 22]
@@ -18,10 +18,10 @@ second_last_port =  port_list[-2]
 LOG.info("Port knock sequence is %s" % port_list[0:-1])
 LOG.info("Final port to open is %s" % port_list[-1])
 
-class OSPortKnocking(app_manager.RyuApp):
+class BebaPortKnocking(app_manager.RyuApp):
 
 	def __init__(self, *args, **kwargs):
-		super(OSPortKnocking, self).__init__(*args, **kwargs)
+		super(BebaPortKnocking, self).__init__(*args, **kwargs)
 
 	@set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
 	def switch_features_handler(self, ev):

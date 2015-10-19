@@ -125,8 +125,8 @@ class OldONFExperimenter(_Experimenter):
         self.num = (self.experimenter_id, num)
         self.exp_type = 2560
 
-class OpenStateExperimenter(_Experimenter):
-    experimenter_id = ofproto_common.OPENSTATE_EXPERIMENTER_ID
+class BebaExperimenter(_Experimenter):
+    experimenter_id = ofproto_common.BEBA_EXPERIMENTER_ID
 
 class NiciraExperimenter(_Experimenter):
     experimenter_id = ofproto_common.NX_EXPERIMENTER_ID

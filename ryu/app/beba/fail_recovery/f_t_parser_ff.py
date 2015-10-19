@@ -1,10 +1,10 @@
 '''
-f_t_parser.py               -->     OpenState version
-f_t_parser_m_f.py           -->     OpenState version with multiple faults
+f_t_parser.py               -->     Beba version
+f_t_parser_m_f.py           -->     Beba version with multiple faults
 f_t_parser_ctrl.py          -->     OpenFlow version: FastFailover detection, in case of fault packets are sent to CTRL in any case and the CTRL reroute them and installs new rules
 f_t_parser_ctrl_drop.py     -->     OpenFlow version: real FastFailover (local detour exploiting FF). in case local detour is not available, packets are dropped while waiting the CTRL
-f_t_parser_ctrl_flags.py    -->     OpenFlow version: detection using OS'Global States (instead of FF). The same as f_t_parser_ctrl_drop.py: in case local detour is not available, packets are sent to the CTRL. The CTRL installs the new rules but does not reroute received packets (it drops them).
-f_t_parser_ff.py            -->     OpenState version exploiting OF's Fast Failover instead of OS's Global States
+f_t_parser_ctrl_flags.py    -->     OpenFlow version: detection using Beba's States (instead of FF). The same as f_t_parser_ctrl_drop.py: in case local detour is not available, packets are sent to the CTRL. The CTRL installs the new rules but does not reroute received packets (it drops them).
+f_t_parser_ff.py            -->     Beba version exploiting OF's Fast Failover instead of Beba's Global States
 '''
 from __future__ import division
 from pulp import Amply
@@ -29,8 +29,8 @@ from mininet.node import RemoteController,UserSwitch
 from mininet.term import makeTerm
 import ryu.ofproto.ofproto_v1_3 as ofp
 import ryu.ofproto.ofproto_v1_3_parser as ofparser
-import ryu.ofproto.openstate_v1_0 as osp
-import ryu.ofproto.openstate_v1_0_parser as osparser
+import ryu.ofproto.beba_v1_0 as osp
+import ryu.ofproto.beba_v1_0_parser as osparser
 import time
 from sets import Set
 

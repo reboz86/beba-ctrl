@@ -16,12 +16,12 @@ h2 is listening at 10.0.0.2:200
 h3 is listening at 10.0.0.3:300
 h4 is listening at 10.0.0.4:400
 
-$ ryu-manager ryu/ryu/app/openstate/forwarding_consistency_1_to_many.py
+$ ryu-manager ryu/ryu/app/beba/forwarding_consistency_1_to_many.py
 $ sudo mn --topo single,4 --switch user --mac --controller remote
 mininet> xterm h1 h1 h1 h2 h3 h4
-h2# python ryu/ryu/app/openstate/echo_server.py 200
-h3# python ryu/ryu/app/openstate/echo_server.py 300
-h4# python ryu/ryu/app/openstate/echo_server.py 400
+h2# python ryu/ryu/app/beba/echo_server.py 200
+h3# python ryu/ryu/app/beba/echo_server.py 300
+h4# python ryu/ryu/app/beba/echo_server.py 400
 
 Let's try to connect from h1 to the EchoServer and send some message:
 h1# nc 10.0.0.2 80
@@ -39,20 +39,20 @@ from ryu.controller.handler import CONFIG_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 import ryu.ofproto.ofproto_v1_3 as ofp
 import ryu.ofproto.ofproto_v1_3_parser as ofparser
-import ryu.ofproto.openstate_v1_0 as osp
-import ryu.ofproto.openstate_v1_0_parser as osparser
+import ryu.ofproto.beba_v1_0 as osp
+import ryu.ofproto.beba_v1_0_parser as osparser
 
-LOG = logging.getLogger('app.openstate.forwarding_consistency_1_to_many')
+LOG = logging.getLogger('app.beba.forwarding_consistency_1_to_many')
 
 SWITCH_PORTS = 4
-LOG.info("OpenState Forwarding Consistency sample app initialized")
+LOG.info("Beba Forwarding Consistency sample app initialized")
 LOG.info("Supporting MAX %d ports per switch" % SWITCH_PORTS)
 
-class OSLoadBalancing(app_manager.RyuApp):
+class BebaLoadBalancing(app_manager.RyuApp):
 
     def __init__(self, *args, **kwargs):
         
-        super(OSLoadBalancing, self).__init__(*args, **kwargs)
+        super(BebaLoadBalancing, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)

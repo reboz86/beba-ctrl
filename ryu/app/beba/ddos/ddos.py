@@ -5,15 +5,15 @@ from ryu.controller.handler import CONFIG_DISPATCHER
 from ryu.controller.handler import set_ev_cls
 import ryu.ofproto.ofproto_v1_3 as ofp
 import ryu.ofproto.ofproto_v1_3_parser as ofparser
-import ryu.ofproto.openstate_v1_0 as osp
-import ryu.ofproto.openstate_v1_0_parser as osparser
+import ryu.ofproto.beba_v1_0 as osp
+import ryu.ofproto.beba_v1_0_parser as osparser
 
-LOG = logging.getLogger('app.openstate.ddos')
+LOG = logging.getLogger('app.beba.ddos')
 
-class OSDDoS(app_manager.RyuApp):
+class BebaDDoS(app_manager.RyuApp):
 
 	def __init__(self, *args, **kwargs):
-		super(OSDDoS, self).__init__(*args, **kwargs)
+		super(BebaDDoS, self).__init__(*args, **kwargs)
 
 	def add_flow(self, datapath, table_id, priority, match, actions):
 		if len(actions) > 0:
@@ -28,7 +28,7 @@ class OSDDoS(app_manager.RyuApp):
 	@set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
 	def switch_features_handler(self, event):
 
-		""" Switche sent his features, check if OpenState supported """
+		""" Switche sent his features, check if Beba supported """
 		msg = event.msg
 		datapath = msg.datapath
 
