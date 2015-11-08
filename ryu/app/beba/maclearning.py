@@ -3,10 +3,10 @@ from ryu.base import app_manager
 from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER
 from ryu.controller.handler import set_ev_cls
-import ryu.ofproto.ofproto_v1_3 as ofp
+import ryu.ofproto.ofproto_v1_3 as ofproto
 import ryu.ofproto.ofproto_v1_3_parser as ofparser
-import ryu.ofproto.beba_v1_0 as osp
-import ryu.ofproto.beba_v1_0_parser as osparser
+import ryu.ofproto.beba_v1_0 as bebaproto
+import ryu.ofproto.beba_v1_0_parser as bebaparser
 
 LOG = logging.getLogger('app.beba.maclearning')
 
@@ -23,7 +23,7 @@ class BebaMacLearning(app_manager.RyuApp):
 	def add_flow(self, datapath, table_id, priority, match, actions):
 		if len(actions) > 0:
 			inst = [ofparser.OFPInstructionActions(
-					ofp.OFPIT_APPLY_ACTIONS, actions)]
+					ofproto.OFPIT_APPLY_ACTIONS, actions)]
 		else:
 			inst = []
 		mod = ofparser.OFPFlowMod(datapath=datapath, table_id=table_id,
@@ -40,23 +40,23 @@ class BebaMacLearning(app_manager.RyuApp):
 		LOG.info("Configuring switch %d..." % datapath.id)
 
 		""" Set table 0 as stateful """
-		req = osparser.OFPExpMsgConfigureStatefulTable(
+		req = bebaparser.OFPExpMsgConfigureStatefulTable(
 				datapath=datapath,
 				table_id=0,
 				stateful=1)
 		datapath.send_msg(req)
 
 		""" Set lookup extractor = {eth_dst} """
-		req = osparser.OFPExpMsgKeyExtract(datapath=datapath,
-				command=osp.OFPSC_EXP_SET_L_EXTRACTOR,
-				fields=[ofp.OXM_OF_ETH_DST],
+		req = bebaparser.OFPExpMsgKeyExtract(datapath=datapath,
+				command=bebaproto.OFPSC_EXP_SET_L_EXTRACTOR,
+				fields=[ofproto.OXM_OF_ETH_DST],
 				table_id=0)
 		datapath.send_msg(req)
 
 		""" Set update extractor = {eth_src}  """
-		req = osparser.OFPExpMsgKeyExtract(datapath=datapath,
-				command=osp.OFPSC_EXP_SET_U_EXTRACTOR,
-				fields=[ofp.OXM_OF_ETH_SRC],
+		req = bebaparser.OFPExpMsgKeyExtract(datapath=datapath,
+				command=bebaproto.OFPSC_EXP_SET_U_EXTRACTOR,
+				fields=[ofproto.OXM_OF_ETH_SRC],
 				table_id=0)
 		datapath.send_msg(req)
 
@@ -65,10 +65,10 @@ class BebaMacLearning(app_manager.RyuApp):
 			for s in range(N+1):
 				match = ofparser.OFPMatch(in_port=i, state=s)
 				if s == 0:
-					out_port = ofp.OFPP_FLOOD
+					out_port = ofproto.OFPP_FLOOD
 				else:
 					out_port = s
-				actions = [osparser.OFPExpActionSetState(state=i, table_id=0, hard_timeout=10),
+				actions = [bebaparser.OFPExpActionSetState(state=i, table_id=0, hard_timeout=10),
 							ofparser.OFPActionOutput(out_port)]
 				self.add_flow(datapath=datapath, table_id=0, priority=0,
 								match=match, actions=actions)

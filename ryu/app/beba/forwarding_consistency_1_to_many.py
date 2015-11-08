@@ -37,10 +37,10 @@ from ryu.base import app_manager
 from ryu.controller import ofp_event
 from ryu.controller.handler import CONFIG_DISPATCHER
 from ryu.controller.handler import set_ev_cls
-import ryu.ofproto.ofproto_v1_3 as ofp
+import ryu.ofproto.ofproto_v1_3 as ofproto
 import ryu.ofproto.ofproto_v1_3_parser as ofparser
-import ryu.ofproto.beba_v1_0 as osp
-import ryu.ofproto.beba_v1_0_parser as osparser
+import ryu.ofproto.beba_v1_0 as bebaproto
+import ryu.ofproto.beba_v1_0_parser as bebaparser
 
 LOG = logging.getLogger('app.beba.forwarding_consistency_1_to_many')
 
@@ -64,22 +64,22 @@ class BebaLoadBalancing(app_manager.RyuApp):
         LOG.info("Configuring switch %d..." % datapath.id)
 
         """ Set table 0 as stateful """
-        req = osparser.OFPExpMsgConfigureStatefulTable(datapath=datapath, 
+        req = bebaparser.OFPExpMsgConfigureStatefulTable(datapath=datapath, 
                                                     table_id=0, 
                                                     stateful=1)
         datapath.send_msg(req)
 
         """ Set lookup extractor = {ip_src, ip_dst, tcp_src, tcp_dst} """
-        req = osparser.OFPExpMsgKeyExtract(datapath=datapath, 
-                                                command=osp.OFPSC_EXP_SET_L_EXTRACTOR, 
-                                                fields=[ofp.OXM_OF_IPV4_SRC,ofp.OXM_OF_IPV4_DST,ofp.OXM_OF_TCP_SRC,ofp.OXM_OF_TCP_DST], 
+        req = bebaparser.OFPExpMsgKeyExtract(datapath=datapath, 
+                                                command=bebaproto.OFPSC_EXP_SET_L_EXTRACTOR, 
+                                                fields=[ofproto.OXM_OF_IPV4_SRC,ofproto.OXM_OF_IPV4_DST,ofproto.OXM_OF_TCP_SRC,ofproto.OXM_OF_TCP_DST], 
                                                 table_id=0)
         datapath.send_msg(req)
 
         """ Set update extractor = {ip_src, ip_dst, tcp_src, tcp_dst} (same as lookup) """
-        req = osparser.OFPExpMsgKeyExtract(datapath=datapath, 
-                                                command=osp.OFPSC_EXP_SET_U_EXTRACTOR, 
-                                                fields=[ofp.OXM_OF_IPV4_SRC,ofp.OXM_OF_IPV4_DST,ofp.OXM_OF_TCP_SRC,ofp.OXM_OF_TCP_DST], 
+        req = bebaparser.OFPExpMsgKeyExtract(datapath=datapath, 
+                                                command=bebaproto.OFPSC_EXP_SET_U_EXTRACTOR, 
+                                                fields=[ofproto.OXM_OF_IPV4_SRC,ofproto.OXM_OF_IPV4_DST,ofproto.OXM_OF_TCP_SRC,ofproto.OXM_OF_TCP_DST], 
                                                 table_id=0)
         datapath.send_msg(req)
 
@@ -91,20 +91,20 @@ class BebaLoadBalancing(app_manager.RyuApp):
             dest_ip=self.int_to_ip_str(port)
             dest_eth=self.int_to_mac_str(port)
             dest_tcp=(port)*100
-            actions = [ osparser.OFPExpActionSetState(state=port, table_id=0),
+            actions = [ bebaparser.OFPExpActionSetState(state=port, table_id=0),
                         ofparser.OFPActionSetField(ipv4_dst=dest_ip),
                         ofparser.OFPActionSetField(eth_dst=dest_eth),
                         ofparser.OFPActionSetField(tcp_dst=dest_tcp),
                         ofparser.OFPActionOutput(port=port, max_len=max_len) ]
 
             buckets.append(ofparser.OFPBucket(weight=100, 
-                                                watch_port=ofp.OFPP_ANY, 
-                                                watch_group=ofp.OFPG_ANY,
+                                                watch_port=ofproto.OFPP_ANY, 
+                                                watch_group=ofproto.OFPG_ANY,
                                                 actions=actions))
 
         req = ofparser.OFPGroupMod(datapath=datapath, 
-                                     command=ofp.OFPGC_ADD,
-                                     type_=ofp.OFPGT_SELECT, 
+                                     command=ofproto.OFPGC_ADD,
+                                     type_=ofproto.OFPGT_SELECT, 
                                      group_id=1, 
                                      buckets=buckets)
         datapath.send_msg(req)
@@ -113,7 +113,7 @@ class BebaLoadBalancing(app_manager.RyuApp):
         
         """ ARP packets flooding """
         match = ofparser.OFPMatch(eth_type=0x0806)
-        actions = [ofparser.OFPActionOutput(port=ofp.OFPP_FLOOD)]
+        actions = [ofparser.OFPActionOutput(port=ofproto.OFPP_FLOOD)]
         self.add_flow(datapath=datapath, table_id=0, priority=100,
                         match=match, actions=actions)
 
@@ -151,7 +151,7 @@ class BebaLoadBalancing(app_manager.RyuApp):
         
     def add_flow(self, datapath, table_id, priority, match, actions):
         inst = [ofparser.OFPInstructionActions(
-                ofp.OFPIT_APPLY_ACTIONS, actions)]
+                ofproto.OFPIT_APPLY_ACTIONS, actions)]
         mod = ofparser.OFPFlowMod(datapath=datapath, table_id=table_id,
                                 priority=priority, match=match, instructions=inst)
         datapath.send_msg(mod)
