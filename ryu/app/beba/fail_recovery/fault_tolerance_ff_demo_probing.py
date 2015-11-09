@@ -2,10 +2,10 @@ from ryu.base import app_manager
 from ryu.controller import ofp_event
 from ryu.controller.handler import MAIN_DISPATCHER, CONFIG_DISPATCHER, HANDSHAKE_DISPATCHER
 from ryu.controller.handler import set_ev_cls
-import ryu.ofproto.ofproto_v1_3 as ofp
+import ryu.ofproto.ofproto_v1_3 as ofproto
 import ryu.ofproto.ofproto_v1_3_parser as ofparser
-import ryu.ofproto.beba_v1_0 as osp
-import ryu.ofproto.beba_v1_0_parser as osparser
+import ryu.ofproto.beba_v1_0 as bebaproto
+import ryu.ofproto.beba_v1_0_parser as bebaparser
 from ryu.lib.packet import packet
 from ryu.topology import event
 import logging
@@ -15,7 +15,7 @@ import f_t_parser_ff as f_t_parser
 LOG = logging.getLogger('app.beba.fault_tolerance_ff')
 
 class BebaFaultTolerance(app_manager.RyuApp):
-    OFP_VERSIONS = [ofp.OFP_VERSION]
+    OFP_VERSIONS = [ofproto.OFP_VERSION]
     
     def __init__(self, *args, **kwargs):
         super(BebaFaultTolerance, self).__init__(*args, **kwargs)
@@ -58,30 +58,30 @@ class BebaFaultTolerance(app_manager.RyuApp):
             buckets.append(ofparser.OFPBucket(actions=actions))
 
             req = ofparser.OFPGroupMod(datapath=datapath, 
-                                     type_=ofp.OFPGT_ALL, 
+                                     type_=ofproto.OFPGT_ALL, 
                                      group_id=0, 
                                      buckets=buckets)
             datapath.send_msg(req)
 
             '''Probing rule: packet duplicated in both primary and detour path'''
             match=ofparser.OFPMatch(in_port=2, state=100, eth_dst="00:00:00:00:00:06", eth_src="00:00:00:00:00:01", eth_type=0x8847)
-            actions = [osparser.OFPExpActionSetState(state=17, table_id=0, hard_timeout=10, hard_rollback=100),
+            actions = [bebaparser.OFPExpActionSetState(state=17, table_id=0, hard_timeout=10, hard_rollback=100),
                        ofparser.OFPActionGroup(0)]
             self.add_flow(datapath=datapath, table_id=0, priority=10,
                     match=match, actions=actions)
 
             '''Match on probe packet: switch back to the primary path'''
             match=ofparser.OFPMatch(in_port=1, mpls_label=100, eth_dst="00:00:00:00:00:06", eth_src="00:00:00:00:00:01", eth_type=0x8847)
-            actions = [osparser.OFPExpActionSetState(state=0, table_id=0)]
+            actions = [bebaparser.OFPExpActionSetState(state=0, table_id=0)]
             self.add_flow(datapath=datapath, table_id=0, priority=10,
                     match=match, actions=actions)
             
             '''Failure: switch on the detour path and set probing timeout'''
             match=ofparser.OFPMatch(in_port=1, mpls_label=17, eth_dst="00:00:00:00:00:06", eth_src="00:00:00:00:00:01", eth_type=0x8847)
-            actions = [osparser.OFPExpActionSetState(state=17, table_id=0, hard_timeout=10, hard_rollback=100),
+            actions = [bebaparser.OFPExpActionSetState(state=17, table_id=0, hard_timeout=10, hard_rollback=100),
                 ofparser.OFPActionOutput(port=3)]
             self.add_flow(datapath=datapath, table_id=0, priority=10,
-                    match=match, actions=actions, command=ofp.OFPFC_MODIFY)
+                    match=match, actions=actions, command=ofproto.OFPFC_MODIFY)
         
         '''Detect node rules'''
         if datapath.id==3:
@@ -94,7 +94,7 @@ class BebaFaultTolerance(app_manager.RyuApp):
             buckets.append(ofparser.OFPBucket(watch_port=1, 
                                             actions=actions))
             req = ofparser.OFPGroupMod(datapath=datapath, 
-                                     type_=ofp.OFPGT_FF, 
+                                     type_=ofproto.OFPGT_FF, 
                                      group_id=0, 
                                      buckets=buckets)
             datapath.send_msg(req)
@@ -115,14 +115,14 @@ class BebaFaultTolerance(app_manager.RyuApp):
             
             '''probe handler: it sends back a probe message coming from the previous node'''
             match=ofparser.OFPMatch(in_port=1, state=0, mpls_label=100, eth_dst="00:00:00:00:00:06", eth_src="00:00:00:00:00:01", eth_type=0x8847)
-            actions = [ofparser.OFPActionOutput(ofp.OFPP_IN_PORT)]
+            actions = [ofparser.OFPActionOutput(ofproto.OFPP_IN_PORT)]
             self.add_flow(datapath=datapath, table_id=0, priority=100,
                     match=match, actions=actions) 
 
 
     def add_flow(self, datapath, table_id, priority, match, actions, command=0):
         inst = [ofparser.OFPInstructionActions(
-                ofp.OFPIT_APPLY_ACTIONS, actions)]
+                ofproto.OFPIT_APPLY_ACTIONS, actions)]
         mod = ofparser.OFPFlowMod(datapath=datapath, table_id=table_id, command=command,
                                 priority=priority, match=match, instructions=inst)
         datapath.send_msg(mod)
@@ -156,15 +156,15 @@ class BebaFaultTolerance(app_manager.RyuApp):
             for flow_entry in f_t_parser.flow_entries_dict[datapath.id]:
                 mod = ofparser.OFPFlowMod(
                     datapath=datapath, cookie=0, cookie_mask=0, table_id=flow_entry['table_id'],
-                    command=ofp.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
-                    priority=10, buffer_id=ofp.OFP_NO_BUFFER,
-                    out_port=ofp.OFPP_ANY,
-                    out_group=ofp.OFPG_ANY,
+                    command=ofproto.OFPFC_ADD, idle_timeout=0, hard_timeout=0,
+                    priority=10, buffer_id=ofproto.OFP_NO_BUFFER,
+                    out_port=ofproto.OFPP_ANY,
+                    out_group=ofproto.OFPG_ANY,
                     flags=0, match=flow_entry['match'], instructions=flow_entry['inst'])
                 datapath.send_msg(mod)     
 
     def send_table_mod(self, datapath):
-        req = osparser.OFPExpMsgConfigureStatefulTable(datapath=datapath, table_id=0, stateful=1)
+        req = bebaparser.OFPExpMsgConfigureStatefulTable(datapath=datapath, table_id=0, stateful=1)
         datapath.send_msg(req)
 
     def send_features_request(self, datapath):
@@ -172,11 +172,11 @@ class BebaFaultTolerance(app_manager.RyuApp):
         datapath.send_msg(req)
 
     def send_key_lookup(self, datapath):
-        key_lookup_extractor = osparser.OFPExpMsgKeyExtract(datapath=datapath, command=osp.OFPSC_EXP_SET_L_EXTRACTOR, fields=[ofp.OXM_OF_ETH_SRC,ofp.OXM_OF_ETH_DST], table_id=0)
+        key_lookup_extractor = bebaparser.OFPExpMsgKeyExtract(datapath=datapath, command=bebaproto.OFPSC_EXP_SET_L_EXTRACTOR, fields=[ofproto.OXM_OF_ETH_SRC,ofproto.OXM_OF_ETH_DST], table_id=0)
         datapath.send_msg(key_lookup_extractor)
 
     def send_key_update(self, datapath):
-        key_update_extractor = osparser.OFPExpMsgKeyExtract(datapath=datapath, command=osp.OFPSC_EXP_SET_U_EXTRACTOR, fields=[ofp.OXM_OF_ETH_SRC,ofp.OXM_OF_ETH_DST], table_id=0)
+        key_update_extractor = bebaparser.OFPExpMsgKeyExtract(datapath=datapath, command=bebaproto.OFPSC_EXP_SET_U_EXTRACTOR, fields=[ofproto.OXM_OF_ETH_SRC,ofproto.OXM_OF_ETH_DST], table_id=0)
         datapath.send_msg(key_update_extractor)
 
     def set_link_down(self,node1,node2):
@@ -186,11 +186,11 @@ class BebaFaultTolerance(app_manager.RyuApp):
         hw_addr1 = self.ports_mac_dict[self.dp_dictionary[node1].id][f_t_parser.mn_topo_ports['s'+str(node1)]['s'+str(node2)]]
         hw_addr2 = self.ports_mac_dict[self.dp_dictionary[node2].id][f_t_parser.mn_topo_ports['s'+str(node2)]['s'+str(node1)]]
         config = 1
-        mask = (ofp.OFPPC_PORT_DOWN)
-        advertise = (ofp.OFPPF_10MB_HD | ofp.OFPPF_100MB_FD |
-                     ofp.OFPPF_1GB_FD | ofp.OFPPF_COPPER |
-                     ofp.OFPPF_AUTONEG | ofp.OFPPF_PAUSE |
-                     ofp.OFPPF_PAUSE_ASYM)
+        mask = (ofproto.OFPPC_PORT_DOWN)
+        advertise = (ofproto.OFPPF_10MB_HD | ofproto.OFPPF_100MB_FD |
+                     ofproto.OFPPF_1GB_FD | ofproto.OFPPF_COPPER |
+                     ofproto.OFPPF_AUTONEG | ofproto.OFPPF_PAUSE |
+                     ofproto.OFPPF_PAUSE_ASYM)
         req1 = ofparser.OFPPortMod(self.dp_dictionary[node1], f_t_parser.mn_topo_ports['s'+str(node1)]['s'+str(node2)], hw_addr1, config,
                                     mask, advertise)
         self.dp_dictionary[node1].send_msg(req1)
@@ -205,11 +205,11 @@ class BebaFaultTolerance(app_manager.RyuApp):
         hw_addr1 = self.ports_mac_dict[self.dp_dictionary[node1].id][f_t_parser.mn_topo_ports['s'+str(node1)]['s'+str(node2)]]
         hw_addr2 = self.ports_mac_dict[self.dp_dictionary[node2].id][f_t_parser.mn_topo_ports['s'+str(node2)]['s'+str(node1)]]
         config = 0
-        mask = (ofp.OFPPC_PORT_DOWN)
-        advertise = (ofp.OFPPF_10MB_HD | ofp.OFPPF_100MB_FD |
-                     ofp.OFPPF_1GB_FD | ofp.OFPPF_COPPER |
-                     ofp.OFPPF_AUTONEG | ofp.OFPPF_PAUSE |
-                     ofp.OFPPF_PAUSE_ASYM)
+        mask = (ofproto.OFPPC_PORT_DOWN)
+        advertise = (ofproto.OFPPF_10MB_HD | ofproto.OFPPF_100MB_FD |
+                     ofproto.OFPPF_1GB_FD | ofproto.OFPPF_COPPER |
+                     ofproto.OFPPF_AUTONEG | ofproto.OFPPF_PAUSE |
+                     ofproto.OFPPF_PAUSE_ASYM)
         req1 = ofparser.OFPPortMod(self.dp_dictionary[node1], f_t_parser.mn_topo_ports['s'+str(node1)]['s'+str(node2)], hw_addr1, config,
                                     mask, advertise)
         self.dp_dictionary[node1].send_msg(req1)
@@ -223,14 +223,14 @@ class BebaFaultTolerance(app_manager.RyuApp):
             self.add_state_entry(self.dp_dictionary[redirect_node],req[0],req[1])'''
 
     def add_state_entry(self, datapath, mac_src, mac_dst):
-        state = osparser.OFPExpMsgSetFlowState(
+        state = bebaparser.OFPExpMsgSetFlowState(
             datapath, state=0, state_mask=0xffffffff, keys=[0,0,0,0,0,mac_src,0,0,0,0,0,mac_dst], table_id=0)
         datapath.send_msg(state)
 
     def install_group_entries(self,datapath):
         for group_entry in f_t_parser.group_entries_dict[datapath.id]:
             buckets = f_t_parser.group_entries_dict[datapath.id][group_entry]
-            req = ofparser.OFPGroupMod(datapath, ofp.OFPGC_ADD,ofp.OFPGT_FF, group_entry, buckets)
+            req = ofparser.OFPGroupMod(datapath, ofproto.OFPGC_ADD,ofproto.OFPGT_FF, group_entry, buckets)
             datapath.send_msg(req)
             
     def send_port_desc_stats_request(self, datapath):

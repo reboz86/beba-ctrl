@@ -3,10 +3,10 @@ from webob import Response
 from ryu.app import wsgi as app_wsgi
 from ryu.app.wsgi import ControllerBase, WSGIApplication
 from ryu.base import app_manager
-import ryu.ofproto.ofproto_v1_3 as ofp
+import ryu.ofproto.ofproto_v1_3 as ofproto
 import ryu.ofproto.ofproto_v1_3_parser as ofparser
-import ryu.ofproto.beba_v1_0 as osp
-import ryu.ofproto.beba_v1_0_parser as osparser
+import ryu.ofproto.beba_v1_0 as bebaproto
+import ryu.ofproto.beba_v1_0_parser as bebaparser
 import fault_tolerance_ff_demo_probing as fault_tolerance
 import os
 
@@ -131,7 +131,7 @@ class NetworkController(ControllerBase):
         return Response(status=200,content_type='text/html',body=body)
 
 class BebaFaultToleranceRestAPI(app_manager.RyuApp):
-    OFP_VERSIONS = [ofp.OFP_VERSION]
+    OFP_VERSIONS = [ofproto.OFP_VERSION]
     _CONTEXTS = {
         'wsgi': WSGIApplication,
         'fault_tolerance' : fault_tolerance.BebaFaultTolerance
