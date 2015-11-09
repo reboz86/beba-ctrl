@@ -3,7 +3,8 @@ from ryu.lib.pack_utils import msg_pack_into
 from ryu.ofproto.ofproto_parser import StringifyMixin, MsgBase, msg_str_attr
 import ryu.ofproto.ofproto_v1_3_parser as ofproto_parser
 import ryu.ofproto.ofproto_v1_3 as ofproto
-import ryu.ofproto.beba_v1_0 as osproto
+import ryu.ofproto.beba_v1_0 as bebaproto
+from ryu import utils
 
 def OFPExpActionSetState(state, table_id, hard_timeout=0, idle_timeout=0, hard_rollback=0, idle_rollback=0, state_mask=0xffffffff):
     """ 
@@ -19,8 +20,8 @@ def OFPExpActionSetState(state, table_id, hard_timeout=0, idle_timeout=0, hard_r
     table_id         Stage ID
     ================ ======================================================
     """
-    act_type=osproto.OFPAT_EXP_SET_STATE
-    data=struct.pack(osproto.OFP_EXP_ACTION_SET_STATE_PACK_STR, act_type, state, state_mask, table_id, hard_rollback, idle_rollback, hard_timeout*1000000, idle_timeout*1000000)
+    act_type=bebaproto.OFPAT_EXP_SET_STATE
+    data=struct.pack(bebaproto.OFP_EXP_ACTION_SET_STATE_PACK_STR, act_type, state, state_mask, table_id, hard_rollback, idle_rollback, hard_timeout*1000000, idle_timeout*1000000)
     return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0xBEBABEBA, data=data)
 
 def OFPExpActionSetFlag(flag, flag_mask=0xffffffff):
@@ -36,76 +37,76 @@ def OFPExpActionSetFlag(flag, flag_mask=0xffffffff):
     flag_mask        Mask value
     ================ ======================================================
     """
-    act_type=osproto.OFPAT_EXP_SET_FLAG
-    data=struct.pack(osproto.OFP_EXP_ACTION_SET_FLAG_PACK_STR, act_type, flag, flag_mask)
+    act_type=bebaproto.OFPAT_EXP_SET_FLAG
+    data=struct.pack(bebaproto.OFP_EXP_ACTION_SET_FLAG_PACK_STR, act_type, flag, flag_mask)
     return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0XBEBABEBA, data=data)
 
 def OFPExpMsgConfigureStatefulTable(datapath, stateful, table_id):
-    command=osproto.OFPSC_STATEFUL_TABLE_CONFIG
-    data=struct.pack(osproto.OFP_EXP_STATE_MOD_PACK_STR, command)
-    data+=struct.pack(osproto.OFP_EXP_STATE_MOD_STATEFUL_TABLE_CONFIG_PACK_STR,table_id,stateful)
+    command=bebaproto.OFPSC_STATEFUL_TABLE_CONFIG
+    data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
+    data+=struct.pack(bebaproto.OFP_EXP_STATE_MOD_STATEFUL_TABLE_CONFIG_PACK_STR,table_id,stateful)
     
-    exp_type=osproto.OFPT_EXP_STATE_MOD
+    exp_type=bebaproto.OFPT_EXP_STATE_MOD
     return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
 
 def OFPExpMsgKeyExtract(datapath, command, fields, table_id):
     field_count=len(fields)
-    data=struct.pack(osproto.OFP_EXP_STATE_MOD_PACK_STR, command)
-    data+=struct.pack(osproto.OFP_EXP_STATE_MOD_EXTRACTOR_PACK_STR,table_id,field_count)
+    data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
+    data+=struct.pack(bebaproto.OFP_EXP_STATE_MOD_EXTRACTOR_PACK_STR,table_id,field_count)
     field_extract_format='!I'
 
-    if field_count <= osproto.MAX_FIELD_COUNT:
+    if field_count <= bebaproto.MAX_FIELD_COUNT:
         for f in range(field_count):
             data+=struct.pack(field_extract_format,fields[f])
     else:
         LOG.error("OFPExpMsgKeyExtract: Number of fields given > MAX_FIELD_COUNT")
     
-    exp_type=osproto.OFPT_EXP_STATE_MOD
+    exp_type=bebaproto.OFPT_EXP_STATE_MOD
     return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
 
 def OFPExpMsgSetFlowState(datapath, state, keys, table_id, idle_timeout=0, idle_rollback=0, hard_timeout=0, hard_rollback=0, state_mask=0xffffffff):
     key_count=len(keys)
-    command=osproto.OFPSC_EXP_SET_FLOW_STATE
-    data=struct.pack(osproto.OFP_EXP_STATE_MOD_PACK_STR, command)
-    data+=struct.pack(osproto.OFP_EXP_STATE_MOD_SET_FLOW_STATE_PACK_STR, table_id, key_count, state, state_mask, hard_rollback, idle_rollback, hard_timeout*1000000, idle_timeout*1000000)
+    command=bebaproto.OFPSC_EXP_SET_FLOW_STATE
+    data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
+    data+=struct.pack(bebaproto.OFP_EXP_STATE_MOD_SET_FLOW_STATE_PACK_STR, table_id, key_count, state, state_mask, hard_rollback, idle_rollback, hard_timeout*1000000, idle_timeout*1000000)
     field_extract_format='!B'
 
-    if key_count <= osproto.MAX_KEY_LEN:
+    if key_count <= bebaproto.MAX_KEY_LEN:
         for f in range(key_count):
                 data+=struct.pack(field_extract_format,keys[f])
     else:
         LOG.error("OFPExpMsgSetFlowState: Number of keys given > MAX_KEY_LEN")
     
-    exp_type=osproto.OFPT_EXP_STATE_MOD
+    exp_type=bebaproto.OFPT_EXP_STATE_MOD
     return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
 
 def OFPExpMsgDelFlowState(datapath, keys, table_id):
     key_count=len(keys)
-    command=osproto.OFPSC_EXP_DEL_FLOW_STATE
-    data=struct.pack(osproto.OFP_EXP_STATE_MOD_PACK_STR, command)
-    data+=struct.pack(osproto.OFP_EXP_STATE_MOD_DEL_FLOW_STATE_PACK_STR,table_id,key_count)
+    command=bebaproto.OFPSC_EXP_DEL_FLOW_STATE
+    data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
+    data+=struct.pack(bebaproto.OFP_EXP_STATE_MOD_DEL_FLOW_STATE_PACK_STR,table_id,key_count)
     field_extract_format='!B'
 
-    if key_count <= osproto.MAX_KEY_LEN:
+    if key_count <= bebaproto.MAX_KEY_LEN:
         for f in range(key_count):
                 data+=struct.pack(field_extract_format,keys[f])
     else:
         LOG.error("OFPExpMsgDelFlowState: Number of keys given > MAX_KEY_LEN")
     
-    exp_type=osproto.OFPT_EXP_STATE_MOD
+    exp_type=bebaproto.OFPT_EXP_STATE_MOD
     return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
 
 def OFPExpSetGlobalState(datapath, flag, flag_mask=0xffffffff):
-    data=struct.pack(osproto.OFP_EXP_STATE_MOD_PACK_STR, osproto.OFPSC_SET_GLOBAL_STATE)
-    data+=struct.pack(osproto.OFP_EXP_STATE_MOD_SET_GLOBAL_STATE_PACK_STR,flag,flag_mask)
+    data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, bebaproto.OFPSC_SET_GLOBAL_STATE)
+    data+=struct.pack(bebaproto.OFP_EXP_STATE_MOD_SET_GLOBAL_STATE_PACK_STR,flag,flag_mask)
     
-    exp_type=osproto.OFPT_EXP_STATE_MOD
+    exp_type=bebaproto.OFPT_EXP_STATE_MOD
     return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
 
 def OFPExpResetGlobalState(datapath):
-    data=struct.pack(osproto.OFP_EXP_STATE_MOD_PACK_STR, osproto.OFPSC_RESET_GLOBAL_STATE)
+    data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, bebaproto.OFPSC_RESET_GLOBAL_STATE)
     
-    exp_type=osproto.OFPT_EXP_STATE_MOD
+    exp_type=bebaproto.OFPT_EXP_STATE_MOD
     return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
 
 def OFPExpStateStatsMultipartRequest(datapath, flags=0, table_id=ofproto.OFPTT_ALL, state=None, match=None):
@@ -118,19 +119,101 @@ def OFPExpStateStatsMultipartRequest(datapath, flags=0, table_id=ofproto.OFPTT_A
         match = ofproto_parser.OFPMatch()
 
     data=bytearray()
-    msg_pack_into(osproto.OFP_STATE_STATS_REQUEST_0_PACK_STR, data, 0, table_id, get_from_state, state)
+    msg_pack_into(bebaproto.OFP_STATE_STATS_REQUEST_0_PACK_STR, data, 0, table_id, get_from_state, state)
     
-    offset=osproto.OFP_STATE_STATS_REQUEST_0_SIZE
+    offset=bebaproto.OFP_STATE_STATS_REQUEST_0_SIZE
     match.serialize(data, offset)
 
-    exp_type=osproto.OFPMP_EXP_STATE_STATS
+    exp_type=bebaproto.OFPMP_EXP_STATE_STATS
     return ofproto_parser.OFPExperimenterStatsRequest(datapath=datapath, flags=flags, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
 
 def OFPExpGlobalStateStatsMultipartRequest(datapath, flags=0):
     data=bytearray()
 
-    exp_type=osproto.OFPMP_EXP_FLAGS_STATS
+    exp_type=bebaproto.OFPMP_EXP_FLAGS_STATS
     return ofproto_parser.OFPExperimenterStatsRequest(datapath=datapath, flags=flags, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
+
+def OFPExpMsgAddPktTmp(datapath, pkttmp_id, pkt_data):
+    command=bebaproto.OFPSC_ADD_PKTTMP
+    data=struct.pack(bebaproto.OFP_EXP_PKTTMP_MOD_PACK_STR, command)
+    data+=struct.pack(bebaproto.OFP_EXP_PKTTMP_MOD_ADD_PKTTMP_PACK_STR, pkttmp_id)
+    data+=pkt_data
+    #print("Data:%s\n" % ''.join( [ "%02X " % ord( x ) for x in data ] ).strip())
+    
+    exp_type=bebaproto.OFPT_EXP_PKTTMP_MOD
+    return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
+
+def OFPExpMsgDelPktTmp(datapath, pkttmp_id):
+    command=bebaproto.OFPSC_DEL_PKTTMP
+    data=struct.pack(bebaproto.OFP_EXP_PKTTMP_MOD_PACK_STR, command)
+    data+=struct.pack(bebaproto.OFP_EXP_PKTTMP_MOD_DEL_PKTTMP_PACK_STR, pkttmp_id)
+    #LOG.error("OFPExpMsgSetFlowState: Number of keys given > MAX_KEY_LEN")
+    
+    exp_type=bebaproto.OFPT_EXP_PKTTMP_MOD
+    return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
+
+class OFPInstructionInSwitchPktGen(ofproto_parser.OFPInstruction):
+    """
+    In Switch Packet Generation instruction
+
+    This instruction triggers the generation of a packet.
+
+    ================ ======================================================
+    Attribute        Description
+    ================ ======================================================
+    type             OFPIT_EXPERIMENTER
+    experimenter_id  BEBA_VENDOR_ID
+    instr_type       OFPIT_IN_SWITCH_PKT_GEN
+    actions          list of OpenFlow action class
+    ================ ======================================================
+
+    """
+    def __init__(self, pkttmp_id, actions=None, len_=None):
+        super(OFPInstructionInSwitchPktGen, self).__init__()
+        self.type = ofproto.OFPIT_EXPERIMENTER
+        self.experimenter_id = bebaproto.BEBA_EXPERIMENTER_ID
+        self.instr_type = bebaproto.OFPIT_IN_SWITCH_PKT_GEN
+        self.pkttmp_id = pkttmp_id
+        for a in actions:
+            assert isinstance(a, ofproto_parser.OFPAction)
+        self.actions = actions
+
+    @classmethod
+    def parser(cls, buf, offset):
+        (type_, len_, experimenter_id_, instr_type_) = struct.unpack_from(
+            bebaproto.OFP_INSTRUCTION_INSWITCH_PKT_GEN_PACK_STR,
+            buf, offset)
+
+        offset += bebaproto.OFP_INSTRUCTION_INSWITCH_PKT_GEN_SIZE
+        actions = []
+        actions_len = len_ - bebaproto.OFP_INSTRUCTION_INSWITCH_PKT_GEN_SIZE
+        while actions_len > 0:
+            a = ofproto_parser.OFPAction.parser(buf, offset)
+            actions.append(a)
+            actions_len -= a.len
+            offset += a.len
+
+        inst = cls(type_, actions)
+        inst.len = len_
+        inst.experimenter_id = experimenter_id_
+        inst.instr_type = instr_type_
+        return inst
+
+    def serialize(self, buf, offset):
+        action_offset = offset + bebaproto.OFP_INSTRUCTION_INSWITCH_PKT_GEN_SIZE
+        if self.actions:
+            for a in self.actions:
+                a.serialize(buf, action_offset)
+                action_offset += a.len
+
+        self.len = action_offset - offset
+        pad_len = utils.round_up(self.len, 8) - self.len
+        msg_pack_into("%dx" % pad_len, buf, action_offset)
+        self.len += pad_len
+
+        msg_pack_into(bebaproto.OFP_INSTRUCTION_INSWITCH_PKT_GEN_PACK_STR,
+                      buf, offset, self.type, self.len, self.experimenter_id,
+                      self.instr_type, self.pkttmp_id)
 
 class OFPStateEntry(object):
     def __init__(self, key_count=None, key=None, state=None):
@@ -148,12 +231,12 @@ class OFPStateEntry(object):
         entry.key_count = key_count[0]
         offset += 4
         entry.key=[]
-        if entry.key_count <= osproto.MAX_KEY_LEN:
+        if entry.key_count <= bebaproto.MAX_KEY_LEN:
             for f in range(entry.key_count):
                 key=struct.unpack_from('!B',buf,offset,)
                 entry.key.append(key[0])
                 offset +=1
-        offset += (osproto.MAX_KEY_LEN - entry.key_count)
+        offset += (bebaproto.MAX_KEY_LEN - entry.key_count)
 
         state = struct.unpack_from('!I', buf, offset)
         entry.state=state[0]
@@ -181,28 +264,28 @@ class OFPStateStats(StringifyMixin):
     def parser(cls, buf, offset):
         state_stats_list = []
         
-        for i in range(len(buf)/osproto.OFP_STATE_STATS_SIZE):
+        for i in range(len(buf)/bebaproto.OFP_STATE_STATS_SIZE):
             state_stats = cls()
 
             (state_stats.length, state_stats.table_id, state_stats.dur_sec,
                 state_stats.dur_nsec, state_stats.field_count) = struct.unpack_from(
-                osproto.OFP_STATE_STATS_0_PACK_STR, buf, offset)
-            offset += osproto.OFP_STATE_STATS_0_SIZE
+                bebaproto.OFP_STATE_STATS_0_PACK_STR, buf, offset)
+            offset += bebaproto.OFP_STATE_STATS_0_SIZE
 
             state_stats.fields=[]
             field_extract_format='!I'
-            if state_stats.field_count <= osproto.MAX_FIELD_COUNT:
+            if state_stats.field_count <= bebaproto.MAX_FIELD_COUNT:
                 for f in range(state_stats.field_count):
                     field=struct.unpack_from(field_extract_format,buf,offset)
                     state_stats.fields.append(field[0])
                     offset +=4
-            offset += ((osproto.MAX_FIELD_COUNT-state_stats.field_count)*4)
+            offset += ((bebaproto.MAX_FIELD_COUNT-state_stats.field_count)*4)
             state_stats.entry = OFPStateEntry.parser(buf, offset)
-            offset += osproto.OFP_STATE_STATS_ENTRY_SIZE
+            offset += bebaproto.OFP_STATE_STATS_ENTRY_SIZE
 
             (state_stats.hard_rb, state_stats.idle_rb,state_stats.hard_to, state_stats.idle_to) = struct.unpack_from(
-                osproto.OFP_STATE_STATS_1_PACK_STR, buf, offset)
-            offset += osproto.OFP_STATE_STATS_1_SIZE
+                bebaproto.OFP_STATE_STATS_1_PACK_STR, buf, offset)
+            offset += bebaproto.OFP_STATE_STATS_1_SIZE
             state_stats_list.append(state_stats)
 
         return state_stats_list
@@ -635,13 +718,13 @@ class OVSDatapath(Datapath):
         def get_flow_table_id(table_id):
             return 2*table_id+1
 
-        if isinstance(msg,ofproto_parser.OFPExperimenter) and msg.experimenter==0xBEBABEBA and msg.exp_type==osproto.OFPT_EXP_STATE_MOD:
+        if isinstance(msg,ofproto_parser.OFPExperimenter) and msg.experimenter==0xBEBABEBA and msg.exp_type==bebaproto.OFPT_EXP_STATE_MOD:
             # We are forced to do unpack because OFPExpMsgConfigureStatefulTable is not a class with attributes; for simplicity it's a
             # method returning an instance of OFPExperimenter with the packed payload (refactoring!?!)
-            command_offset = struct.calcsize(osproto.OFP_EXP_STATE_MOD_PACK_STR)
-            (command,) = struct.unpack(osproto.OFP_EXP_STATE_MOD_PACK_STR, msg.data[:command_offset])
-            if command == osproto.OFPSC_STATEFUL_TABLE_CONFIG:
-                (table_id,stateful) = struct.unpack(osproto.OFP_EXP_STATE_MOD_STATEFUL_TABLE_CONFIG_PACK_STR, msg.data[command_offset:command_offset+struct.calcsize(osproto.OFP_EXP_STATE_MOD_STATEFUL_TABLE_CONFIG_PACK_STR)])
+            command_offset = struct.calcsize(bebaproto.OFP_EXP_STATE_MOD_PACK_STR)
+            (command,) = struct.unpack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, msg.data[:command_offset])
+            if command == bebaproto.OFPSC_STATEFUL_TABLE_CONFIG:
+                (table_id,stateful) = struct.unpack(bebaproto.OFP_EXP_STATE_MOD_STATEFUL_TABLE_CONFIG_PACK_STR, msg.data[command_offset:command_offset+struct.calcsize(bebaproto.OFP_EXP_STATE_MOD_STATEFUL_TABLE_CONFIG_PACK_STR)])
 
                 # table miss in state table
                 # OVS have all port numbers into the 16-bit range (like in OF1.0), while later OF version use 32-bit port numbers.
@@ -666,15 +749,15 @@ class OVSDatapath(Datapath):
 
                 # OFPExpMsgConfigureStatefulTable msg is dropped
                 return
-            elif command == osproto.OFPSC_EXP_SET_L_EXTRACTOR or command == osproto.OFPSC_EXP_SET_U_EXTRACTOR:
-                (table_id,field_count) = struct.unpack(osproto.OFP_EXP_STATE_MOD_EXTRACTOR_PACK_STR,msg.data[command_offset:command_offset+struct.calcsize(osproto.OFP_EXP_STATE_MOD_EXTRACTOR_PACK_STR)])
+            elif command == bebaproto.OFPSC_EXP_SET_L_EXTRACTOR or command == bebaproto.OFPSC_EXP_SET_U_EXTRACTOR:
+                (table_id,field_count) = struct.unpack(bebaproto.OFP_EXP_STATE_MOD_EXTRACTOR_PACK_STR,msg.data[command_offset:command_offset+struct.calcsize(bebaproto.OFP_EXP_STATE_MOD_EXTRACTOR_PACK_STR)])
                 if field_count>0:
-                    fields_offset = command_offset+struct.calcsize(osproto.OFP_EXP_STATE_MOD_EXTRACTOR_PACK_STR)
-                    if command == osproto.OFPSC_EXP_SET_L_EXTRACTOR:
+                    fields_offset = command_offset+struct.calcsize(bebaproto.OFP_EXP_STATE_MOD_EXTRACTOR_PACK_STR)
+                    if command == bebaproto.OFPSC_EXP_SET_L_EXTRACTOR:
                         self.lookup_scope[table_id] = []
                         for f in range(field_count):
                             self.lookup_scope[table_id].append(struct.unpack('!I',msg.data[fields_offset+struct.calcsize('!I')*f : fields_offset+struct.calcsize('!I')+struct.calcsize('!I')*f])[0])
-                    elif command == osproto.OFPSC_EXP_SET_U_EXTRACTOR:
+                    elif command == bebaproto.OFPSC_EXP_SET_U_EXTRACTOR:
                         self.update_scope[table_id] = []
                         for f in range(field_count):
                             self.update_scope[table_id].append(struct.unpack('!I',msg.data[fields_offset+struct.calcsize('!I')*f : fields_offset+struct.calcsize('!I')+struct.calcsize('!I')*f])[0])
@@ -682,7 +765,7 @@ class OVSDatapath(Datapath):
                     LOG.error("ERROR: no fields in lookup/update scope!")
                 # OFPExpMsgKeyExtract msg is dropped
                 return
-            elif command == osproto.OFPSC_EXP_SET_FLOW_STATE:
+            elif command == bebaproto.OFPSC_EXP_SET_FLOW_STATE:
                 # We should send a FlowMod MODIFY by converting 'keys' into FlowMod's match fields and 'state' into OFPActionSetField(reg0=state) '''
                 '''
                 TODO: timeouts handling (see below comments in OFPAT_EXP_SET_STATE)
@@ -696,7 +779,7 @@ class OVSDatapath(Datapath):
                 Ryu API for OF1.3 does not include anymore NXActionRegLoad. If state_mask is 0xFFFFFFFF we can use set_field, otherwise
                 we need another strategy. Maybe porting NXActionRegLoad from OF1.0?
                 '''
-                (table_id, key_count, state, state_mask, hard_rollback, idle_rollback, hard_timeout, idle_timeout) = struct.unpack(osproto.OFP_EXP_STATE_MOD_SET_FLOW_STATE_PACK_STR, msg.data[command_offset:command_offset+struct.calcsize(osproto.OFP_EXP_STATE_MOD_SET_FLOW_STATE_PACK_STR)])
+                (table_id, key_count, state, state_mask, hard_rollback, idle_rollback, hard_timeout, idle_timeout) = struct.unpack(bebaproto.OFP_EXP_STATE_MOD_SET_FLOW_STATE_PACK_STR, msg.data[command_offset:command_offset+struct.calcsize(bebaproto.OFP_EXP_STATE_MOD_SET_FLOW_STATE_PACK_STR)])
                 if key_count>0:
                     lookup_fields = {}
                     for f in self.lookup_scope[table_id]:
@@ -713,10 +796,10 @@ class OVSDatapath(Datapath):
                 else:
                     LOG.error("ERROR: empty key in STATE_MOD message!")
                 return
-            elif command == osproto.OFPSC_EXP_DEL_FLOW_STATE:
+            elif command == bebaproto.OFPSC_EXP_DEL_FLOW_STATE:
                 print "OFPSC_EXP_DEL_FLOW_STATE msg"
                 # We should send a FlowMod DELETE by converting 'keys' into FlowMod's match fields
-                (table_id, key_count) = struct.unpack(osproto.OFP_EXP_STATE_MOD_SET_FLOW_STATE_PACK_STR, msg.data[command_offset:command_offset+struct.calcsize(osproto.OFP_EXP_STATE_MOD_SET_FLOW_STATE_PACK_STR)])
+                (table_id, key_count) = struct.unpack(bebaproto.OFP_EXP_STATE_MOD_SET_FLOW_STATE_PACK_STR, msg.data[command_offset:command_offset+struct.calcsize(bebaproto.OFP_EXP_STATE_MOD_SET_FLOW_STATE_PACK_STR)])
                 if key_count>0:
                     lookup_fields = {}
                     for f in self.lookup_scope[table_id]:
@@ -731,17 +814,17 @@ class OVSDatapath(Datapath):
                 else:
                     LOG.error("ERROR: empty key in STATE_MOD message!")
                 return
-            elif command == osproto.OFPSC_SET_GLOBAL_STATE:
+            elif command == bebaproto.OFPSC_SET_GLOBAL_STATE:
                 ''' TODO: global states could be implemented by prepending a stage with just one table miss entry that sets reg8=global state value.
                 We should send a FlowMod ADD. NB get_state_table_id() and get_flow_table_id() return value should be sincreased by 1 '''
                 return
-            elif command == osproto.OFPSC_RESET_GLOBAL_STATE:
+            elif command == bebaproto.OFPSC_RESET_GLOBAL_STATE:
                 ''' TODO: We should send a FlowMod MOD that sets reg8=0 (or that just do GotoTable(1) ) in the table miss entry'''
                 return
         elif isinstance(msg,ofproto_parser.OFPExperimenterStatsRequest) and msg.experimenter==0xBEBABEBA:
-            if msg.exp_type==osproto.OFPMP_EXP_STATE_STATS:
+            if msg.exp_type==bebaproto.OFPMP_EXP_STATE_STATS:
                 ''' TODO: In Open vSwitch the state table is a simple flow table => we could send a OFPMultipartRequest, maybe '''
-            elif msg.exp_type==osproto.OFPMP_EXP_FLAGS_STATS:
+            elif msg.exp_type==bebaproto.OFPMP_EXP_FLAGS_STATS:
                 ''' TODO: in Open vSwitch, global states are a flow entry in the first table => we could send a OFPMultipartRequest, maybe '''
             return
         elif isinstance(msg,ofproto_parser.OFPFlowMod):
@@ -752,8 +835,8 @@ class OVSDatapath(Datapath):
                     for act in instr.actions:
                         if isinstance(act, ofproto_parser.OFPActionExperimenterUnknown) and act.experimenter == 0xBEBABEBA:
                             (act_type,) = struct.unpack('!I', act.data[:struct.calcsize('!I')])
-                            if act_type == osproto.OFPAT_EXP_SET_STATE:
-                                (act_type, state, state_mask, table_id, hard_rollback, idle_rollback, hard_timeout, idle_timeout) = struct.unpack(osproto.OFP_EXP_ACTION_SET_STATE_PACK_STR, act.data[:struct.calcsize(osproto.OFP_EXP_ACTION_SET_STATE_PACK_STR)])
+                            if act_type == bebaproto.OFPAT_EXP_SET_STATE:
+                                (act_type, state, state_mask, table_id, hard_rollback, idle_rollback, hard_timeout, idle_timeout) = struct.unpack(bebaproto.OFP_EXP_ACTION_SET_STATE_PACK_STR, act.data[:struct.calcsize(bebaproto.OFP_EXP_ACTION_SET_STATE_PACK_STR)])
                                 # OF flow entry's timeouts can be set only when a flow entry is added! (e.g. created for the first time).
                                 # Timeouts are ignored because flow entry's timeouts can be changed only when the flow entry is added! (e.g. created for the first time)
                                 # Rollback state!=0 could be supported with 2 learn actions, one with high priority (say 200) with the user-defined timeout and load:state->reg0
@@ -765,7 +848,7 @@ class OVSDatapath(Datapath):
                                 learn_action = ofproto_parser.NXActionLearn(table_id=get_state_table_id(table_id),priority=100,
                                     specs=specs)
                                 filtered_action_set.append(learn_action)
-                            elif act_type == osproto.OFPAT_EXP_SET_FLAG:
+                            elif act_type == bebaproto.OFPAT_EXP_SET_FLAG:
                                 ''' TODO we could add an action learn() that install a flow entry in table 0 which sets reg8=global state value, with mask '''
                         else:
                             # non-Beba actions are left unchanged
@@ -808,8 +891,8 @@ class OVSDatapath(Datapath):
                     for act in buck.actions:
                         if isinstance(act, ofproto_parser.OFPActionExperimenterUnknown) and act.experimenter == 0xBEBABEBA:
                             (act_type,) = struct.unpack('!I', act.data[:struct.calcsize('!I')])
-                            if act_type == osproto.OFPAT_EXP_SET_STATE:
-                                (act_type, state, state_mask, table_id, hard_rollback, idle_rollback, hard_timeout, idle_timeout) = struct.unpack(osproto.OFP_EXP_ACTION_SET_STATE_PACK_STR, act.data[:struct.calcsize(osproto.OFP_EXP_ACTION_SET_STATE_PACK_STR)])
+                            if act_type == bebaproto.OFPAT_EXP_SET_STATE:
+                                (act_type, state, state_mask, table_id, hard_rollback, idle_rollback, hard_timeout, idle_timeout) = struct.unpack(bebaproto.OFP_EXP_ACTION_SET_STATE_PACK_STR, act.data[:struct.calcsize(bebaproto.OFP_EXP_ACTION_SET_STATE_PACK_STR)])
                                 # Timeouts are ignored because flow entry's timeouts can be changed only when the flow entry is added! (e.g. created for the first time)
                                 # For the same reason we cannot have rollback state different from zero! At most flow entry's timeouts can cause the entry to be deleted,
                                 # because it's not possible to change the load action with rollback state when a timeout expires!
@@ -820,7 +903,7 @@ class OVSDatapath(Datapath):
                                 learn_action = ofproto_parser.NXActionLearn(table_id=get_state_table_id(table_id),priority=100,
                                     specs=specs)
                                 filtered_action_set.append(learn_action)
-                            elif act_type == osproto.OFPAT_EXP_SET_FLAG:
+                            elif act_type == bebaproto.OFPAT_EXP_SET_FLAG:
                                 ''' TODO we could add an action learn() that install a flow entry in table 0 which sets reg8=global state value, with mask '''
                         else:
                             # non-Beba actions are left unchanged
