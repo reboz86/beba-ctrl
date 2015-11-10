@@ -13,7 +13,7 @@ import struct
 import binascii
 
 
-LOG = logging.getLogger('app.beba.maclearning')
+LOG = logging.getLogger('app.beba.maclearning.state_sync')
 
 # Number of switch ports
 N = 4
@@ -77,31 +77,32 @@ class OSMacLearning(app_manager.RyuApp):
 					out_port = ofp.OFPP_FLOOD
 				else:
 					out_port = s
-				actions = [osparser.OFPExpActionSetState(state=i, table_id=0, hard_timeout=10),
-							ofparser.OFPActionOutput(out_port)
-							#,ofparser.OFPActionOutput(ofp.OFPP_CONTROLLER,
-                                                        # ofp.OFPCML_NO_BUFFER)
-					  ]
-				self.add_flow(datapath=datapath, table_id=0, priority=0,
-								match=match, actions=actions)
-				
-				
-        # State Sync: parse flow mod notification message	
+
+				actions = [
+					osparser.OFPExpActionSetState(state=i, table_id=0, hard_timeout=10),
+					ofparser.OFPActionOutput(out_port)
+					#,ofparser.OFPActionOutput(ofp.OFPP_CONTROLLER,
+					#ofp.OFPCML_NO_BUFFER)
+				]
+
+				# Triggers flow mod
+				self.add_flow(datapath=datapath, table_id=0, priority=0, match=match, actions=actions)
+
+        # State Sync: Parse flow mod notification message
 	@set_ev_cls(ofp_event.EventOFPExperimenterStatsReply, MAIN_DISPATCHER)
 	def packet_in_handler(self, event):
 		msg = event.msg
+
 		if(msg.body.experimenter==0xBEBABEBA and msg.body.exp_type==osp.OFPT_EXP_FLOW_NOTIFICATION) :
 			(table_id, ntf_type)= struct.unpack('!II', msg.body.data[:struct.calcsize("!II")])
-			if ofp.OFPT_FLOW_MOD == ntf_type :
-				print "**********************"
-				print ("Notification FLOW_MOD")
-				print ("Table id "+ str(table_id))
+			if ofp.OFPT_FLOW_MOD == ntf_type:
+				print "*************************************"
+				print ("Flow Mode Notification")
+				print ("Table ID: "+ str(table_id))
 				match = ofparser.OFPMatch.parser(msg.body.data, struct.calcsize("!II"))	
-				print ("Match "+ str(match))
+				print ("   Match: "+ str(match))
 				data = msg.body.data[struct.calcsize('!II')+match.length:]
 				form = '!'+str(len(data)/struct.calcsize('!I'))+'I'
 				instructions = struct.unpack_from(form, data, 0)
-				print "Number of instructions " + str(instructions[0])
-				print "Instructions " + str(instructions[1:])
-					
-				
+				print "Number of instructions: " + str(instructions[0])
+				print "          Instructions: " + str(instructions[1:instructions[0]+1])

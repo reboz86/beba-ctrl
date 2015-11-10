@@ -10,10 +10,8 @@ import ryu.ofproto.beba_v1_0_parser as osparser
 import array
 from xdiagnose.pci_devices import RADEON
 import struct
-import binascii
 
-
-LOG = logging.getLogger('app.openstate.maclearning')
+LOG = logging.getLogger('app.openstate.maclearning.state_sync')
 
 # Number of switch ports
 N = 4
@@ -40,7 +38,7 @@ class OSMacLearning(app_manager.RyuApp):
 	@set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
 	def switch_features_handler(self, event):
 
-		""" Switche sent his features, check if OpenState supported """
+		""" Switche sent his features, check if Beba supported """
 		msg = event.msg
 		datapath = msg.datapath
 		devices.append(datapath)
@@ -77,30 +75,60 @@ class OSMacLearning(app_manager.RyuApp):
 					out_port = ofp.OFPP_FLOOD
 				else:
 					out_port = s
-				actions = [osparser.OFPExpActionSetState(state=i, table_id=0, hard_timeout=10),
-							ofparser.OFPActionOutput(out_port)
-							#,							ofparser.OFPActionOutput(ofp.OFPP_CONTROLLER,
-                            #                         ofp.OFPCML_NO_BUFFER)
-							]
+
+				actions = [
+					osparser.OFPExpActionSetState(state=i, table_id=0, hard_timeout=10),
+					ofparser.OFPActionOutput(out_port)
+					#,ofparser.OFPActionOutput(ofp.OFPP_CONTROLLER,
+					#ofp.OFPCML_NO_BUFFER)
+				]
+
 				self.add_flow(datapath=datapath, table_id=0, priority=0,
-								match=match, actions=actions)
+						match=match, actions=actions
+				)
 				
 				
-	@set_ev_cls(ofp_event.EventOFPExperimenter, MAIN_DISPATCHER)
+	@set_ev_cls(ofp_event.EventOFPExperimenterStatsReply, MAIN_DISPATCHER)
 	def packet_in_handler(self, event):
 		msg = event.msg
 		
-		if(struct.calcsize("!IIIII48x")== len(msg.data)) :
-			data1 = msg.data[:struct.calcsize("!IIIII")]
-			(table_id, old_state, new_state, state_mask, key_len) = struct.unpack("!IIIII", data1)
-			print("Table id : "+str(table_id))
-			print("Old state: "+str(old_state))
-			print("new state: "+str(new_state))
-			print("key length:"+str(key_len))
-			data2 = msg.data[struct.calcsize("!IIIII"):]
-			key = data2[:key_len]
-			print binascii.hexlify(key)
-			print("************")
-		
+		# State Sync: Parse the response from the switch
+		if (msg.body.experimenter == 0xBEBABEBA) :
+			if(msg.body.exp_type == osp.OFPMP_EXP_STATE_STATS):
+				data = msg.body.data
+				t = osparser.OFPStateStats.parser(data,0)
+				if (t!=[]):
+					for index in range(len(t)):
+						k = map(lambda x:hex(x),t[index].entry.key)
+						print("State : " + str(t[index].entry.state))
+						print("Key   : " + str(k))
+						print("*********")
+			
 				
+import time
+from threading import Thread
+
+def ask_for_state(t,k,match):
+	""" 
+	State Sync: Get the state of a flow
+	"""
+
+	counter = 0
+	while counter < k :
+		time.sleep(t)
+		if devices ==[] :
+			print "No connected device"
+		else:
+			m = osparser.OFPExpGetFlowState(devices[0], table_id=0, match=match)
+			devices[0].send_msg(m)
+			print("GetFlowState message sent")
+
+			counter = counter + 1
+
+# Request the state from s1
+match=ofparser.OFPMatch(eth_dst="00:00:00:00:00:01")
+
+# A thread that periodically(20 requests are sent one every 5 seconds) asks for the state
+t = Thread(target=ask_for_state, args=(5,20,match))
+t.start()
 

@@ -13,7 +13,7 @@ import struct
 import binascii
 
 
-LOG = logging.getLogger('app.beba.maclearning')
+LOG = logging.getLogger('app.beba.maclearning.state_sync')
 
 # Number of switch ports
 N = 4
@@ -77,40 +77,43 @@ class OSMacLearning(app_manager.RyuApp):
 					out_port = ofp.OFPP_FLOOD
 				else:
 					out_port = s
-				actions = [osparser.OFPExpActionSetState(state=i, table_id=0, hard_timeout=10),
-							ofparser.OFPActionOutput(out_port)
-							#,ofparser.OFPActionOutput(ofp.OFPP_CONTROLLER,
-                                                        # ofp.OFPCML_NO_BUFFER)
-							]
-				self.add_flow(datapath=datapath, table_id=0, priority=0,
-								match=match, actions=actions)
+
+				actions = [
+					osparser.OFPExpActionSetState(state=i, table_id=0, hard_timeout=10),
+					ofparser.OFPActionOutput(out_port)
+					#,ofparser.OFPActionOutput(ofp.OFPP_CONTROLLER,
+					#ofp.OFPCML_NO_BUFFER)
+				]
+
+				self.add_flow(datapath=datapath, table_id=0, priority=0, match=match, actions=actions)
 				
         # State Sync: parse respond message from switch				
 	@set_ev_cls(ofp_event.EventOFPExperimenterStatsReply, MAIN_DISPATCHER)
 	def packet_in_handler(self, event):
 		msg = event.msg
 		reply = msg.body
-		if (reply.experimenter == 0xBEBABEBA) :
-			if(reply.exp_type == osp.OFPMP_EXP_FLAGS_STATS) :
+		if (reply.experimenter == 0xBEBABEBA):
+			if(reply.exp_type == osp.OFPMP_EXP_FLAGS_STATS):
 				data = reply.data
-				print("Global states " + binascii.hexlify(data))
-		
-		
-			
+				print("Global state: " + binascii.hexlify(data))
 
 import time
 from threading import Thread
 
 def ask_for_global_state():
+	""" 
+	State Sync: Get the global state from a switch
+	"""
+
 	time.sleep(10)
-	if devices==[] :
+	if devices==[]:
 		print("No connected device")
 	else :
-	        # State Sync: message ask for global states
+	        # State Sync: Message that asks for the global state of the first datapath element
 		msg = osparser.OFPExpGlobalStateStatsMultipartRequest(devices[0]) 
 		devices[0].send_msg(msg)
-                print("Message get global states")
-   
+                print("GetGlobalState message sent")
+
 t = Thread(target=ask_for_global_state, args=())
 t.start()				
 

@@ -12,7 +12,7 @@ from xdiagnose.pci_devices import RADEON
 import struct
 
 
-LOG = logging.getLogger('app.beba.maclearning')
+LOG = logging.getLogger('app.beba.maclearning.state_sync')
 
 # Number of switch ports
 N = 4
@@ -76,53 +76,57 @@ class OSMacLearning(app_manager.RyuApp):
 					out_port = ofp.OFPP_FLOOD
 				else:
 					out_port = s
-				actions = [osparser.OFPExpActionSetState(state=i, table_id=0, hard_timeout=10),
-							ofparser.OFPActionOutput(out_port)
-							#,ofparser.OFPActionOutput(ofp.OFPP_CONTROLLER,
-                                                        # ofp.OFPCML_NO_BUFFER)
-							]
-				self.add_flow(datapath=datapath, table_id=0, priority=0,
-								match=match, actions=actions)
+				actions = [
+					osparser.OFPExpActionSetState(state=i, table_id=0, hard_timeout=10),
+					ofparser.OFPActionOutput(out_port)
+					#,ofparser.OFPActionOutput(ofp.OFPP_CONTROLLER,
+					#ofp.OFPCML_NO_BUFFER)
+				]
+
+				self.add_flow(datapath=datapath, table_id=0, priority=0, match=match, actions=actions)
 				
-	#State Sync: Parse the responds			
+	#State Sync: Parse the response
 	@set_ev_cls(ofp_event.EventOFPExperimenterStatsReply, MAIN_DISPATCHER)
 	def packet_in_handler(self, event):
 		msg = event.msg
 		
-		if (msg.body.experimenter == 0xBEBABEBA) :
-			if(msg.body.exp_type == osp.OFPMP_EXP_STATE_STATS) :
+		if (msg.body.experimenter == 0xBEBABEBA):
+			if(msg.body.exp_type == osp.OFPMP_EXP_STATE_STATS):
 				data = msg.body.data
-				t = osparser.OFPStateStats.parser(data,0)
+				t = osparser.OFPStateStats.parser(data, 0)
 				if(t==[]):
-					print "No key for given state"
-					
-				else :
-				
-					for index in range(len(t)) :
+					print "No key for this state"
+				else:
+					for index in range(len(t)):
 						i = index
 						k = map(lambda x:hex(x),t[i].entry.key)
-						print("State : " + str(t[index].entry.state))
-						print(" Key :  " + str(k))
+						print("State: " + str(t[index].entry.state))
+						print("  Key: " + str(k))
 						print('***************')
-				
+
 import time
 from threading import Thread
 
-def ask_for_state(t,k, state):
+def ask_for_state(t, k, state):
+	""" 
+	State Sync: Get the flows in a given state
+	"""
+
 	counter = 0
 	while counter < k :
 		time.sleep(t)
 		if devices==[] :
 			print ("No connected device")
 		else :
-			# State Sync: Ask for flows in the state  
+			# State Sync: Ask for flows in the state 'state'
 			m = osparser.OFPExpGetFlowsInState(devices[0], table_id=0, state=state)
 			devices[0].send_msg(m)
-			print("Message sent")
+			print("GetFlowsInState message sent")
+
 		counter = counter + 1
 
 state=2
-# Thread asks 5 times for flows in the state, interval between messages is 5 sec
-t = Thread(target=ask_for_state, args=(5,5, state))
+# Thread that asks 5 times for flows in the above state, interval between messages is 5 sec
+t = Thread(target=ask_for_state, args=(5, 5, state))
 t.start()
 
