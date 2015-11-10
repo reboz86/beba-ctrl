@@ -2,8 +2,6 @@
 
 ### Requirements:
 
-Install OpenState (refer to http://openstate-sdn.org/)
-
 	sudo pip install pulp
 	sudo pip install networkx
 	sudo pip install fnss
@@ -15,7 +13,7 @@ Open 4 ssh terminals into the VM (ssh -X mininet@VM_IP)
 
 In the first terminal type
 
-	cd ~/ryu/ryu/app/openstate/fail_recovery
+	cd ~/ryu/ryu/app/beba/fail_recovery
 	sudo ryu-manager fault_tolerance_rest_ff_demo_probing.py
 
 
