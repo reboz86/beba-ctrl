@@ -1,4 +1,6 @@
 from struct import calcsize
+from ryu.lib import type_desc
+from ryu.ofproto import oxm_fields
 
 from ryu.ofproto.ofproto_common import OFP_HEADER_SIZE
 OFP_OXM_EXPERIMENTER_HEADER_SIZE = 8
@@ -83,6 +85,12 @@ OFPAT_EXP_SET_FLAG  = 1
 #enum ofp_stats_extension_commands
 OFPMP_EXP_STATE_STATS = 0
 OFPMP_EXP_FLAGS_STATS = 1
+
+#Openstate experimenter fields
+oxm_types = [
+    oxm_fields.OpenStateExperimenter('flags', 0, type_desc.Int4),
+    oxm_fields.OpenStateExperimenter('state', 1, type_desc.Int4)
+] 
 
 #struct ofp_exp_msg_pkttmp_mod
 OFP_EXP_PKTTMP_MOD_PACK_STR='!Bx'

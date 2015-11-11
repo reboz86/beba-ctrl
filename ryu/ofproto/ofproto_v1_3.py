@@ -22,6 +22,7 @@ from ryu.lib import type_desc
 from ryu.ofproto import nx_match
 from ryu.ofproto import ofproto_utils
 from ryu.ofproto import oxm_fields
+from ryu.ofproto import beba_v1_0
 
 from struct import calcsize
 
@@ -1201,11 +1202,8 @@ oxm_types = [
     oxm_fields.ONFExperimenter('tcp_flags', 42, type_desc.Int2),
     # EXT-233 Output match Extension
     # NOTE(yamamoto): The spec says uint64_t but I assume it's an error.
-    oxm_fields.ONFExperimenter('actset_output', 43, type_desc.Int4),
-    #Beba experimenter fields
-    oxm_fields.BebaExperimenter('flags', 0, type_desc.Int4),
-    oxm_fields.BebaExperimenter('state', 1, type_desc.Int4)
-] + nx_match.oxm_types
+    oxm_fields.ONFExperimenter('actset_output', 43, type_desc.Int4)
+] + nx_match.oxm_types + beba_v1_0.oxm_types
 
 oxm_fields.generate(__name__)
 
