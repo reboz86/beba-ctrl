@@ -88,8 +88,8 @@ OFPMP_EXP_GLOBAL_STATE_STATS = 1
 
 #Openstate experimenter fields
 oxm_types = [
-    oxm_fields.OpenStateExperimenter('global_state', 0, type_desc.Int4),
-    oxm_fields.OpenStateExperimenter('state', 1, type_desc.Int4)
+    oxm_fields.BebaExperimenter('global_state', 0, type_desc.Int4),
+    oxm_fields.BebaExperimenter('state', 1, type_desc.Int4)
 ] 
 
 #struct ofp_exp_msg_pkttmp_mod
