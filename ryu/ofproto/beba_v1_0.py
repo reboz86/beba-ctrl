@@ -44,10 +44,10 @@ OFP_EXP_ACTION_SET_STATE_PACK_STR = '!I4xIIB3xIIII4x'
 OFP_EXP_ACTION_SET_STATE_SIZE = 40
 assert calcsize(OFP_EXP_ACTION_SET_STATE_PACK_STR) == OFP_EXP_ACTION_SET_STATE_SIZE
 
-#struct ofp_exp_action_set_flag
-OFP_EXP_ACTION_SET_FLAG_PACK_STR = '!I4xII'
-OFP_EXP_ACTION_SET_FLAG_SIZE = 16
-assert calcsize(OFP_EXP_ACTION_SET_FLAG_PACK_STR) == OFP_EXP_ACTION_SET_FLAG_SIZE
+#struct ofp_exp_action_set_global_state
+OFP_EXP_ACTION_SET_GLOBAL_STATE_PACK_STR = '!I4xII'
+OFP_EXP_ACTION_SET_GLOBAL_STATE_SIZE = 16
+assert calcsize(OFP_EXP_ACTION_SET_GLOBAL_STATE_PACK_STR) == OFP_EXP_ACTION_SET_GLOBAL_STATE_SIZE
 
 # struct ofp_state_stats_request
 OFP_STATE_STATS_REQUEST_0_PACK_STR = '!BB2xI'
@@ -70,25 +70,25 @@ OFPT_EXP_STATE_MOD = 0
 OFPT_EXP_PKTTMP_MOD = 1
 
 #enum ofp_state_mod_command 
-OFPSC_STATEFUL_TABLE_CONFIG = 0
+OFPSC_EXP_STATEFUL_TABLE_CONFIG = 0
 OFPSC_EXP_SET_L_EXTRACTOR   = 1
 OFPSC_EXP_SET_U_EXTRACTOR   = 2
 OFPSC_EXP_SET_FLOW_STATE    = 3
 OFPSC_EXP_DEL_FLOW_STATE    = 4
-OFPSC_SET_GLOBAL_STATE      = 5
-OFPSC_RESET_GLOBAL_STATE    = 6
+OFPSC_EXP_SET_GLOBAL_STATE      = 5
+OFPSC_EXP_RESET_GLOBAL_STATE    = 6
 
 #enum ofp_exp_actions
 OFPAT_EXP_SET_STATE = 0
-OFPAT_EXP_SET_FLAG  = 1
+OFPAT_EXP_SET_GLOBAL_STATE  = 1
 
 #enum ofp_stats_extension_commands
 OFPMP_EXP_STATE_STATS = 0
-OFPMP_EXP_FLAGS_STATS = 1
+OFPMP_EXP_GLOBAL_STATE_STATS = 1
 
 #Openstate experimenter fields
 oxm_types = [
-    oxm_fields.OpenStateExperimenter('flags', 0, type_desc.Int4),
+    oxm_fields.OpenStateExperimenter('global_state', 0, type_desc.Int4),
     oxm_fields.OpenStateExperimenter('state', 1, type_desc.Int4)
 ] 
 
