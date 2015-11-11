@@ -5,6 +5,10 @@ import ryu.ofproto.ofproto_v1_3_parser as ofproto_parser
 import ryu.ofproto.ofproto_v1_3 as ofproto
 import ryu.ofproto.beba_v1_0 as bebaproto
 from ryu import utils
+import logging
+import six
+
+LOG = logging.getLogger('ryu.ofproto.beba_v1_0_parser')
 
 def OFPExpActionSetState(state, table_id, hard_timeout=0, idle_timeout=0, hard_rollback=0, idle_rollback=0, state_mask=0xffffffff):
     """ 
@@ -28,7 +32,7 @@ def OFPExpActionSetGlobalState(global_state, global_state_mask=0xffffffff):
     """ 
     Returns a Set Global State experimenter action
 
-    This action updates global state in the switch global state.
+    This action updates the switch global state.
     
     ================ ======================================================
     Attribute        Description
@@ -37,7 +41,7 @@ def OFPExpActionSetGlobalState(global_state, global_state_mask=0xffffffff):
     global_state_mask        Mask value
     ================ ======================================================
     """
-    act_type=bebaproto.OFP_EXP_ACTION_SET_FLAG_PACK_STR
+    act_type=bebaproto.OFPAT_EXP_SET_GLOBAL_STATE
     data=struct.pack(bebaproto.OFP_EXP_ACTION_SET_GLOBAL_STATE_PACK_STR, act_type, global_state, global_state_mask)
     return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0XBEBABEBA, data=data)
 
@@ -51,6 +55,11 @@ def OFPExpMsgConfigureStatefulTable(datapath, stateful, table_id):
 
 def OFPExpMsgKeyExtract(datapath, command, fields, table_id):
     field_count=len(fields)
+
+    if field_count > bebaproto.MAX_FIELD_COUNT:
+        field_count = 0
+        LOG.debug("OFPExpMsgKeyExtract: Number of fields given > MAX_FIELD_COUNT")
+
     data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
     data+=struct.pack(bebaproto.OFP_EXP_STATE_MOD_EXTRACTOR_PACK_STR,table_id,field_count)
     field_extract_format='!I'
@@ -58,14 +67,17 @@ def OFPExpMsgKeyExtract(datapath, command, fields, table_id):
     if field_count <= bebaproto.MAX_FIELD_COUNT:
         for f in range(field_count):
             data+=struct.pack(field_extract_format,fields[f])
-    else:
-        LOG.error("OFPExpMsgKeyExtract: Number of fields given > MAX_FIELD_COUNT")
     
     exp_type=bebaproto.OFPT_EXP_STATE_MOD
     return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
 
 def OFPExpMsgSetFlowState(datapath, state, keys, table_id, idle_timeout=0, idle_rollback=0, hard_timeout=0, hard_rollback=0, state_mask=0xffffffff):
     key_count=len(keys)
+
+    if key_count > bebaproto.MAX_KEY_LEN:
+        key_count = 0
+        LOG.debug("OFPExpMsgSetFlowState: Number of keys given > MAX_KEY_LEN")
+
     command=bebaproto.OFPSC_EXP_SET_FLOW_STATE
     data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
     data+=struct.pack(bebaproto.OFP_EXP_STATE_MOD_SET_FLOW_STATE_PACK_STR, table_id, key_count, state, state_mask, hard_rollback, idle_rollback, hard_timeout*1000000, idle_timeout*1000000)
@@ -74,14 +86,17 @@ def OFPExpMsgSetFlowState(datapath, state, keys, table_id, idle_timeout=0, idle_
     if key_count <= bebaproto.MAX_KEY_LEN:
         for f in range(key_count):
                 data+=struct.pack(field_extract_format,keys[f])
-    else:
-        LOG.error("OFPExpMsgSetFlowState: Number of keys given > MAX_KEY_LEN")
     
     exp_type=bebaproto.OFPT_EXP_STATE_MOD
     return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
 
 def OFPExpMsgDelFlowState(datapath, keys, table_id):
     key_count=len(keys)
+
+    if key_count > bebaproto.MAX_KEY_LEN:
+        key_count = 0
+        LOG.debug("OFPExpMsgDelFlowState: Number of keys given > MAX_KEY_LEN")
+
     command=bebaproto.OFPSC_EXP_DEL_FLOW_STATE
     data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
     data+=struct.pack(bebaproto.OFP_EXP_STATE_MOD_DEL_FLOW_STATE_PACK_STR,table_id,key_count)
@@ -90,8 +105,6 @@ def OFPExpMsgDelFlowState(datapath, keys, table_id):
     if key_count <= bebaproto.MAX_KEY_LEN:
         for f in range(key_count):
                 data+=struct.pack(field_extract_format,keys[f])
-    else:
-        LOG.error("OFPExpMsgDelFlowState: Number of keys given > MAX_KEY_LEN")
     
     exp_type=bebaproto.OFPT_EXP_STATE_MOD
     return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
@@ -134,6 +147,24 @@ def OFPExpGlobalStateStatsMultipartRequest(datapath):
 
     exp_type=bebaproto.OFPMP_EXP_GLOBAL_STATE_STATS
     return ofproto_parser.OFPExperimenterStatsRequest(datapath=datapath, flags=flags, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
+
+def OFPErrorExperimenterMsg_handler(ev):
+    msg = ev.msg
+    LOG.debug('')
+    LOG.debug('OFPErrorExperimenterMsg received.')
+    LOG.debug('version=%s, msg_type=%s, msg_len=%s, xid=%s',hex(msg.version),
+        hex(msg.msg_type), hex(msg.msg_len), hex(msg.xid))
+    LOG.debug(' `-- msg_type: %s',ofproto.ofp_msg_type_to_str(msg.msg_type))
+    LOG.debug("OFPErrorExperimenterMsg(type=%s, exp_type=%s, experimenter_id='%s')",hex(msg.type),
+        hex(msg.exp_type), hex(msg.experimenter))
+    LOG.debug(' |-- type: %s',ofproto.ofp_error_type_to_str(msg.type))
+    LOG.debug(' |-- exp_type: %s',bebaproto.ofp_error_code_to_str(msg.type,msg.exp_type))
+    LOG.debug(' |-- experimenter_id: %s',hex(msg.experimenter))
+    (version, msg_type, msg_len, xid) = struct.unpack_from(ofproto.OFP_HEADER_PACK_STR,
+                              six.binary_type(msg.data))
+    LOG.debug(
+            ' `-- data: version=%s, msg_type=%s, msg_len=%s, xid=%s',
+            hex(version), hex(msg_type), hex(msg_len), hex(xid))
 
 def OFPExpMsgAddPktTmp(datapath, pkttmp_id, pkt_data):
     command=bebaproto.OFPSC_ADD_PKTTMP

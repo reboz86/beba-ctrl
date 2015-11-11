@@ -1,6 +1,7 @@
 from struct import calcsize
 from ryu.lib import type_desc
 from ryu.ofproto import oxm_fields
+from ryu.ofproto import ofproto_utils
 
 from ryu.ofproto.ofproto_common import OFP_HEADER_SIZE
 OFP_OXM_EXPERIMENTER_HEADER_SIZE = 8
@@ -65,33 +66,6 @@ OFP_STATE_STATS_1_SIZE = 16
 assert calcsize(OFP_STATE_STATS_1_PACK_STR) == OFP_STATE_STATS_1_SIZE
 OFP_STATE_STATS_SIZE = OFP_STATE_STATS_0_SIZE + 4*MAX_FIELD_COUNT + OFP_STATE_STATS_ENTRY_SIZE + OFP_STATE_STATS_1_SIZE
 
-#enum ofp_exp_messages
-OFPT_EXP_STATE_MOD = 0
-OFPT_EXP_PKTTMP_MOD = 1
-
-#enum ofp_state_mod_command 
-OFPSC_EXP_STATEFUL_TABLE_CONFIG = 0
-OFPSC_EXP_SET_L_EXTRACTOR   = 1
-OFPSC_EXP_SET_U_EXTRACTOR   = 2
-OFPSC_EXP_SET_FLOW_STATE    = 3
-OFPSC_EXP_DEL_FLOW_STATE    = 4
-OFPSC_EXP_SET_GLOBAL_STATE      = 5
-OFPSC_EXP_RESET_GLOBAL_STATE    = 6
-
-#enum ofp_exp_actions
-OFPAT_EXP_SET_STATE = 0
-OFPAT_EXP_SET_GLOBAL_STATE  = 1
-
-#enum ofp_stats_extension_commands
-OFPMP_EXP_STATE_STATS = 0
-OFPMP_EXP_GLOBAL_STATE_STATS = 1
-
-#Openstate experimenter fields
-oxm_types = [
-    oxm_fields.BebaExperimenter('global_state', 0, type_desc.Int4),
-    oxm_fields.BebaExperimenter('state', 1, type_desc.Int4)
-] 
-
 #struct ofp_exp_msg_pkttmp_mod
 OFP_EXP_PKTTMP_MOD_PACK_STR='!Bx'
 OFP_EXP_PKTTMP_MOD_SIZE =18
@@ -107,6 +81,26 @@ OFP_EXP_PKTTMP_MOD_DEL_PKTTMP_PACK_STR='!I4x'
 OFP_EXP_PKTTMP_MOD_DEL_PKTTMP_SIZE = 8
 assert (calcsize(OFP_EXP_PKTTMP_MOD_DEL_PKTTMP_PACK_STR) == OFP_EXP_PKTTMP_MOD_DEL_PKTTMP_SIZE)
 
+# struct ofp_instruction_in_switch_pkt_gen
+OFP_INSTRUCTION_INSWITCH_PKT_GEN_PACK_STR = '!HHII4xI4x'
+OFP_INSTRUCTION_INSWITCH_PKT_GEN_SIZE = 24
+assert (calcsize(OFP_INSTRUCTION_INSWITCH_PKT_GEN_PACK_STR) ==
+        OFP_INSTRUCTION_INSWITCH_PKT_GEN_SIZE)
+
+
+#enum ofp_exp_messages
+OFPT_EXP_STATE_MOD = 0
+OFPT_EXP_PKTTMP_MOD = 1
+
+#enum ofp_state_mod_command 
+OFPSC_EXP_STATEFUL_TABLE_CONFIG = 0
+OFPSC_EXP_SET_L_EXTRACTOR   = 1
+OFPSC_EXP_SET_U_EXTRACTOR   = 2
+OFPSC_EXP_SET_FLOW_STATE    = 3
+OFPSC_EXP_DEL_FLOW_STATE    = 4
+OFPSC_EXP_SET_GLOBAL_STATE      = 5
+OFPSC_EXP_RESET_GLOBAL_STATE    = 6
+
 #enum ofp_pkttmp_mod_command
 OFPSC_ADD_PKTTMP = 0
 OFPSC_DEL_PKTTMP = 1
@@ -114,9 +108,34 @@ OFPSC_DEL_PKTTMP = 1
 #enum ofp_exp_instructions 
 OFPIT_IN_SWITCH_PKT_GEN = 0
 
+#enum ofp_exp_actions
+OFPAT_EXP_SET_STATE = 0
+OFPAT_EXP_SET_GLOBAL_STATE  = 1
 
-# struct ofp_instruction_in_switch_pkt_gen
-OFP_INSTRUCTION_INSWITCH_PKT_GEN_PACK_STR = '!HHII4xI4x'
-OFP_INSTRUCTION_INSWITCH_PKT_GEN_SIZE = 24
-assert (calcsize(OFP_INSTRUCTION_INSWITCH_PKT_GEN_PACK_STR) ==
-        OFP_INSTRUCTION_INSWITCH_PKT_GEN_SIZE)
+#enum ofp_stats_extension_commands
+OFPMP_EXP_STATE_STATS = 0
+OFPMP_EXP_GLOBAL_STATE_STATS = 1
+
+# enum ofp_error_type
+OFPET_EXPERIMENTER = 0xffff
+
+# enum ofp_experimenter_code
+OFPEC_EXP_STATE_MOD_FAILED      = 0
+OFPEC_EXP_STATE_MOD_BAD_COMMAND = 1
+OFPEC_EXP_SET_EXTRACTOR         = 2
+OFPEC_EXP_SET_FLOW_STATE        = 3
+OFPEC_EXP_DEL_FLOW_STATE        = 4
+OFPEC_BAD_EXP_MESSAGE           = 5
+OFPEC_BAD_EXP_ACTION            = 6
+OFPEC_BAD_EXP_LEN               = 7
+OFPEC_BAD_TABLE_ID              = 8
+OFPEC_BAD_MATCH_WILDCARD        = 9
+
+#Beba experimenter fields
+oxm_types = [
+    oxm_fields.BebaExperimenter('global_state', 0, type_desc.Int4),
+    oxm_fields.BebaExperimenter('state', 1, type_desc.Int4)
+] 
+
+# generate utility methods
+ofproto_utils.generate(__name__)

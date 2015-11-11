@@ -12,10 +12,10 @@ install:
   - "pip install tox"
 
 script:
-<<<<<<< HEAD
-  - "./run_tests.sh -N --no-pep8"
-=======
   - NOSE_VERBOSE=0 tox -e $TOX_ENV
 
 sudo: false
->>>>>>> c0723eb0a632870a3077c2513aee7ed51cb31779
+
+notifications:
+  slack: bebaproj:QOVWgAeMr7r6YebwBWwApXea
+  email: false
