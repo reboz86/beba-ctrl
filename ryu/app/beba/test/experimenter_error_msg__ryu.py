@@ -365,14 +365,78 @@ class BebaErrorExperimenterMsg(app_manager.RyuApp):
         a = ofparser.OFPActionExperimenterUnknown(experimenter=0XBEBABEBA, data=data)
         actions = [a]
         match = ofparser.OFPMatch(in_port=5,eth_type=0x800,ip_proto=1)
-        self.add_flow(datapath, 100, match, actions)     
+        self.add_flow(datapath, 100, match, actions)
+
+    def test30(self,datapath):
+        self.send_table_mod(datapath)
+        self.send_key_lookup(datapath)
+        self.send_key_update(datapath)
+        actions = []
+        match = ofparser.OFPMatch(in_port=5,eth_type=0x800,ip_proto=1)
+        i = bebaparser.OFPInstructionInSwitchPktGen(0, actions)
+        i.instr_type = 56
+        inst = [i]
+        mod = ofparser.OFPFlowMod(datapath=datapath, table_id=0,
+                                priority=100, match=match, instructions=inst)
+        datapath.send_msg(mod)
+
+    def test31(self,datapath):
+        from scapy.all import Ether, ARP
+        self.send_table_mod(datapath)
+        self.send_key_lookup(datapath)
+        self.send_key_update(datapath)
+        pkt_data = str(Ether(src='00:01:02:03:04:05', dst='46:9c:96:30:ff:d5')/ARP(
+                        hwsrc='00:01:02:03:04:05',hwdst='46:9c:96:30:ff:d5',psrc="172.16.0.2",pdst='172.16.0.1',op=2))
+        command=50
+        data=struct.pack(bebaproto.OFP_EXP_PKTTMP_MOD_PACK_STR, command)
+        data+=struct.pack(bebaproto.OFP_EXP_PKTTMP_MOD_ADD_PKTTMP_PACK_STR, 0)
+        data+=pkt_data
+        exp_type=bebaproto.OFPT_EXP_PKTTMP_MOD
+        req =ofparser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
+        datapath.send_msg(req)
+    
+    def test32(self,datapath):
+        from scapy.all import Ether, ARP
+        self.send_table_mod(datapath)
+        self.send_key_lookup(datapath)
+        self.send_key_update(datapath)
+        exp_type=bebaproto.OFPT_EXP_PKTTMP_MOD
+        data=struct.pack('!B',bebaproto.OFPSC_ADD_PKTTMP)
+        req =ofparser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
+        datapath.send_msg(req)
+
+    def test33(self,datapath):
+        from scapy.all import Ether, ARP
+        self.send_table_mod(datapath)
+        self.send_key_lookup(datapath)
+        self.send_key_update(datapath)
+        pkt_data = str(Ether(src='00:01:02:03:04:05', dst='46:9c:96:30:ff:d5')/ARP(
+                        hwsrc='00:01:02:03:04:05',hwdst='46:9c:96:30:ff:d5',psrc="172.16.0.2",pdst='172.16.0.1',op=2))
+        command=bebaproto.OFPSC_ADD_PKTTMP
+        data=struct.pack(bebaproto.OFP_EXP_PKTTMP_MOD_PACK_STR, command)
+        exp_type=bebaproto.OFPT_EXP_PKTTMP_MOD
+        req =ofparser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
+        datapath.send_msg(req)
+
+    def test34(self,datapath):
+        from scapy.all import Ether, ARP
+        self.send_table_mod(datapath)
+        self.send_key_lookup(datapath)
+        self.send_key_update(datapath)
+        pkt_data = str(Ether(src='00:01:02:03:04:05', dst='46:9c:96:30:ff:d5')/ARP(
+                        hwsrc='00:01:02:03:04:05',hwdst='46:9c:96:30:ff:d5',psrc="172.16.0.2",pdst='172.16.0.1',op=2))
+        command=bebaproto.OFPSC_DEL_PKTTMP
+        data=struct.pack(bebaproto.OFP_EXP_PKTTMP_MOD_PACK_STR, command)
+        exp_type=bebaproto.OFPT_EXP_PKTTMP_MOD
+        req =ofparser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
+        datapath.send_msg(req)
 
     '''
-    To perform test #30 you have to comment lines 129-130 of ryu/ofproto/oxx_fields.py file and recompile the controller.
-    Furthermore you have to uncomment _monitor30 in this file
+    To perform test #35 you have to comment lines 129-130 of ryu/ofproto/oxx_fields.py file and recompile the controller.
+    Furthermore you have to uncomment _monitor35 in this file
     With this little patch the controller does not mask the match field, triggering the error at switch side.
     
-    def test30(self,datapath):
+    def test35(self,datapath):
         self.send_table_mod(datapath)
         actions = []
         match = ofparser.OFPMatch(in_port=1,ip_proto=1,eth_type=0x800,state=(7,8))
@@ -566,7 +630,7 @@ class BebaErrorExperimenterMsg(app_manager.RyuApp):
     def _monitor16(self,datapath):
         print("Network is ready")
 
-        # [TEST 16]_Beba experimenter message too short
+        # [TEST 16]_STETE MOD experimenter message too short
         self.test16(datapath)
         self.wait_for_error(16,ofproto.OFPET_EXPERIMENTER,bebaproto.OFPEC_BAD_EXP_LEN)
         self.restart_mininet()
@@ -673,20 +737,60 @@ class BebaErrorExperimenterMsg(app_manager.RyuApp):
         # [TEST 29] Set global state action with invalid length
         self.test29(datapath)
         self.wait_for_error(29,ofproto.OFPET_EXPERIMENTER,bebaproto.OFPEC_BAD_EXP_LEN)
-        #self.restart_mininet()
-        self.stop_test_and_gracefully_exit()
-
-    '''
-    To perform the test #30 you have to comment lines 129-130 of ryu/ofproto/oxx_fields.py file and recompile the controller
-    Furthermore you have to uncomment test30 in this file
-    With this little patch the controller does not mask the match field, triggering the error at switch side.
+        self.restart_mininet()
 
     def _monitor30(self,datapath):
         print("Network is ready")
 
-        # [TEST 30] Bad masked state match field
+        # [TEST 30]_unknown Beba experimenter instruction
         self.test30(datapath)
-        self.wait_for_error(30,ofproto.OFPET_EXPERIMENTER,bebaproto.OFPEC_BAD_MATCH_WILDCARD)
+        self.wait_for_error(30,ofproto.OFPET_EXPERIMENTER,bebaproto.OFPEC_BAD_EXP_INSTRUCTION)
+        self.restart_mininet()
+
+    def _monitor31(self,datapath):
+        print("Network is ready")
+
+        # [TEST 31]_PKTTMP MOD with unknown command
+        self.test31(datapath)
+        self.wait_for_error(31,ofproto.OFPET_EXPERIMENTER,bebaproto.OFPEC_EXP_PKTTMP_MOD_BAD_COMMAND)
+        self.restart_mininet()
+
+    def _monitor32(self,datapath):
+        print("Network is ready")
+
+        # [TEST 32]_PKTTMP MOD with too short
+        self.test32(datapath)
+        self.wait_for_error(32,ofproto.OFPET_EXPERIMENTER,bebaproto.OFPEC_BAD_EXP_LEN)
+        self.restart_mininet()
+
+    def _monitor33(self,datapath):
+        print("Network is ready")
+
+        # [TEST 33]_ADD_PKTTMP command too short
+        self.test33(datapath)
+        self.wait_for_error(33,ofproto.OFPET_EXPERIMENTER,bebaproto.OFPEC_BAD_EXP_LEN)
+        self.restart_mininet()
+
+    def _monitor34(self,datapath):
+        print("Network is ready")
+
+        # [TEST 34]_DEL_PKTTMP command too short
+        self.test34(datapath)
+        self.wait_for_error(34,ofproto.OFPET_EXPERIMENTER,bebaproto.OFPEC_BAD_EXP_LEN)
+        #self.restart_mininet()
+        self.stop_test_and_gracefully_exit()
+
+    '''
+    To perform the test #35 you have to comment lines 129-130 of ryu/ofproto/oxx_fields.py file and recompile the controller
+    Furthermore you have to uncomment test35 in this file
+    With this little patch the controller does not mask the match field, triggering the error at switch side.
+
+    def _monitor35(self,datapath):
+        print("Network is ready")
+
+        # [TEST 35] Bad masked state match field
+        self.test35(datapath)
+        self.wait_for_error(35,ofproto.OFPET_EXPERIMENTER,bebaproto.OFPEC_BAD_MATCH_WILDCARD)
         #self.restart_mininet()
         self.stop_test_and_gracefully_exit()
     '''
