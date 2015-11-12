@@ -108,12 +108,11 @@ def ask_for_global_state():
 	time.sleep(10)
 	if devices==[]:
 		print("No connected device")
-	else :
+	else:
 	        # State Sync: Message that asks for the global state of the first datapath element
 		msg = osparser.OFPExpGlobalStateStatsMultipartRequest(devices[0]) 
 		devices[0].send_msg(msg)
                 print("GetGlobalState message sent")
 
 t = Thread(target=ask_for_global_state, args=())
-t.start()				
-
+t.start()

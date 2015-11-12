@@ -93,6 +93,8 @@ class OSMacLearning(app_manager.RyuApp):
 		
 		if(msg.experimenter==0xBEBABEBA and msg.exp_type==osp.OFPT_EXP_STATE_CHANGED):
 			data1 = msg.data[:struct.calcsize("!IIIII")]
+
+			# StateSync: The state notification message contains the following fields
 			(table_id, old_state, new_state, state_mask, key_len) = struct.unpack("!IIIII", data1)
 			print("  Table ID: "+str(table_id))
 			print(" Old state: "+str(old_state))

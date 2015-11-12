@@ -9,10 +9,10 @@ To run the examples:
   PYTHONPATH=. bin/ryu-manager ryu/app/beba/state_sync/<example file>
   
 1.  get_flow_state.py
-    Asks for state of a flow and parsea the response.
+    Asks for state of a flow and parses the response.
 
 2.  get_flows_in_state.py
-    Asks for the flow(s) in a state and parsea the response
+    Asks for the flow(s) in a state and parses the response.
 
 3.  get_global_state.py
     Asks for the global state of a switch and parses the response.

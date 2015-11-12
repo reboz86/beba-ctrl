@@ -93,7 +93,7 @@ class OSMacLearning(app_manager.RyuApp):
 		msg = event.msg
 		
 		# State Sync: Parse the response from the switch
-		if (msg.body.experimenter == 0xBEBABEBA) :
+		if (msg.body.experimenter == 0xBEBABEBA):
 			if(msg.body.exp_type == osp.OFPMP_EXP_STATE_STATS):
 				data = msg.body.data
 				t = osparser.OFPStateStats.parser(data,0)
@@ -116,7 +116,7 @@ def ask_for_state(t,k,match):
 	counter = 0
 	while counter < k :
 		time.sleep(t)
-		if devices ==[] :
+		if devices ==[]:
 			print "No connected device"
 		else:
 			m = osparser.OFPExpGetFlowState(devices[0], table_id=0, match=match)

@@ -113,11 +113,11 @@ def ask_for_state(t, k, state):
 	"""
 
 	counter = 0
-	while counter < k :
+	while counter < k:
 		time.sleep(t)
-		if devices==[] :
+		if devices==[]:
 			print ("No connected device")
-		else :
+		else:
 			# State Sync: Ask for flows in the state 'state'
 			m = osparser.OFPExpGetFlowsInState(devices[0], table_id=0, state=state)
 			devices[0].send_msg(m)
@@ -125,7 +125,8 @@ def ask_for_state(t, k, state):
 
 		counter = counter + 1
 
-state=2
+state = 2
+
 # Thread that asks 5 times for flows in the above state, interval between messages is 5 sec
 t = Thread(target=ask_for_state, args=(5, 5, state))
 t.start()
