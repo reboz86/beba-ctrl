@@ -141,10 +141,22 @@ def OFPExpStateStatsMultipartRequest(datapath, table_id=ofproto.OFPTT_ALL, state
     exp_type=bebaproto.OFPMP_EXP_STATE_STATS
     return ofproto_parser.OFPExperimenterStatsRequest(datapath=datapath, flags=flags, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
 
+""" 
+State Sync: Controller asks for flows in a specific state
+"""
+def OFPExpGetFlowsInState(datapath, table_id=ofproto.OFPTT_ALL, state=None):
+    return OFPExpStateStatsMultipartRequest(datapath=datapath, table_id=table_id, state=state, match=None)
+""" 
+State Sync: Controller asks for the state of a flow
+"""
+def OFPExpGetFlowState(datapath, table_id=ofproto.OFPTT_ALL, match=None):
+    return OFPExpStateStatsMultipartRequest(datapath=datapath, table_id=table_id, state=None, match=match)
+""" 
+State Sync: This function returns the global state of a switch
+"""
 def OFPExpGlobalStateStatsMultipartRequest(datapath):
-    flags = 0 # Zero or ``OFPMPF_REQ_MORE``
+    flags = 0 # Zero or ``OFPMPF_REQ_MORE``    
     data=bytearray()
-
     exp_type=bebaproto.OFPMP_EXP_GLOBAL_STATE_STATS
     return ofproto_parser.OFPExperimenterStatsRequest(datapath=datapath, flags=flags, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
 
