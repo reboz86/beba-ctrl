@@ -1199,7 +1199,11 @@ oxm_types = [
     # EXT-256 Old version of ONF Extension
     oxm_fields.OldONFExperimenter('pbb_uca', 2560, type_desc.Int1),
     # EXT-109 TCP flags match field Extension
-    oxm_fields.ONFExperimenter('tcp_flags', 42, type_desc.Int2),
+    #oxm_fields.ONFExperimenter('tcp_flags', 42, type_desc.Int2),
+    #oxm_fields.ONFExperimenter('tcp_flags', 42, type_desc.Int2),
+    # This is our extension o the openflow basic
+    oxm_fields.OpenFlowBasic('tcp_flags',40,type_desc.Int2),
+
     # EXT-233 Output match Extension
     # NOTE(yamamoto): The spec says uint64_t but I assume it's an error.
     oxm_fields.ONFExperimenter('actset_output', 43, type_desc.Int4)

@@ -617,6 +617,7 @@ class Flow(object):
         self.ipv4_dst = 0
         self.tcp_src = 0
         self.tcp_dst = 0
+        self.tcp_flags = 0
         self.udp_src = 0
         self.udp_dst = 0
         self.sctp_src = 0
@@ -657,6 +658,7 @@ class FlowWildcards(object):
         self.arp_tpa_mask = 0
         self.arp_sha_mask = 0
         self.arp_tha_mask = 0
+        self.tcp_flags_mask = 0
         self.ipv6_src_mask = []
         self.ipv6_dst_mask = []
         self.ipv6_flabel_mask = 0
@@ -702,6 +704,7 @@ class OFPMatch(StringifyMixin):
     ipv4_dst         IPv4 address    IPv4 destination address
     tcp_src          Integer 16bit   TCP source port
     tcp_dst          Integer 16bit   TCP destination port
+    tcp_flags        Integer 16bit   TCP Flags
     udp_src          Integer 16bit   UDP source port
     udp_dst          Integer 16bit   UDP destination port
     sctp_src         Integer 16bit   SCTP source port
@@ -943,6 +946,7 @@ class OFPMatch(StringifyMixin):
         OXM_OF_IPV4_DST        IPv4 destination address
         OXM_OF_TCP_SRC         TCP source port
         OXM_OF_TCP_DST         TCP destination port
+        OXM_OF_TCP_FLAGS       TCP flags
         OXM_OF_UDP_SRC         UDP source port
         OXM_OF_UDP_DST         UDP destination port
         OXM_OF_SCTP_SRC        SCTP source port
@@ -1087,6 +1091,14 @@ class OFPMatch(StringifyMixin):
 
         if self._wc.ft_test(ofproto.OFPXMT_OFB_TCP_DST):
             self.append_field(ofproto.OXM_OF_TCP_DST, self._flow.tcp_dst)
+
+        if self._wc.ft_test(ofproto.OFPXMT_OFB_TCP_FLAGS):
+            if self._wc.tcp_flags_mask == UINT16_MAX:
+                header = ofproto.OXM_OF_TCP_FLAGS
+            else:
+                header = ofproto.OXM_OF_TCP_FLAGS_W
+            self.append_field(header, self._flow.tcp_flags,
+                              self._wc.tcp_flags_mask)
 
         if self._wc.ft_test(ofproto.OFPXMT_OFB_UDP_SRC):
             self.append_field(ofproto.OXM_OF_UDP_SRC, self._flow.udp_src)
@@ -1367,6 +1379,14 @@ class OFPMatch(StringifyMixin):
     def set_tcp_dst(self, tcp_dst):
         self._wc.ft_set(ofproto.OFPXMT_OFB_TCP_DST)
         self._flow.tcp_dst = tcp_dst
+    
+    def set_tcp_flags(self,tcp_flags):
+        self.set_tcp_flags_masked(tcp_flags, UINT16_MAX)
+
+    def set_tcp_flags_masked(self, tcp_flags, mask):
+        self._wc.ft_set(ofproto.OFPXMT_OFB_TCP_FLAGS)
+        self._flow.tcp_flags = tcp_flags
+        self._wc.tcp_flags_mask = mask
 
     def set_udp_src(self, udp_src):
         self._wc.ft_set(ofproto.OFPXMT_OFB_UDP_SRC)
@@ -2184,6 +2204,17 @@ class MTIPv6ExtHdr(OFPMatchField):
         super(MTIPv6ExtHdr, self).__init__(header)
         self.value = value
         self.mask = mask
+
+@OFPMatchField.register_field_header([ofproto.OXM_OF_TCP_FLAGS,
+                                      ofproto.OXM_OF_TCP_FLAGS_W])
+class MTTCPFlags(OFPMatchField):
+    pack_str = '!H' 
+
+    def __init__(self,header,value,mask=None):
+        super(MTTCPFlags, self).__init__(header)
+        self.value = value
+        self.mask = mask
+
 
 
 @_register_parser

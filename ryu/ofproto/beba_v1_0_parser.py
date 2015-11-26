@@ -434,6 +434,15 @@ def get_field_string(field,key,key_count,offset):
             return ("tcp_dst=\"%d\""%(value),length)
         else:
             return ("tcp_dst=*",0)
+    elif field==ofproto.OXM_OF_TC_FLAGS:
+        if key_count!=0:
+            length = 2
+            print(key)
+            value = struct.unpack('<H', array('B',key[offset:offset+length]))[0]
+            return ("tcp_flags=\"%d\""%(value),length)
+        else:
+            return ("tcp_flags=*",0)
+
     elif field==ofproto.OXM_OF_UDP_SRC:
         if key_count!=0:
             length = 2
