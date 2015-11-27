@@ -10,7 +10,7 @@ import six
 
 LOG = logging.getLogger('ryu.ofproto.beba_v1_0_parser')
 
-def OFPExpActionSetState(state, table_id, hard_timeout=0, idle_timeout=0, hard_rollback=0, idle_rollback=0, state_mask=0xffffffff):
+def OFPExpActionSetState(state, table_id, bit=0, hard_timeout=0, idle_timeout=0, hard_rollback=0, idle_rollback=0, state_mask=0xffffffff):
     """ 
     Returns a Set state experimenter action
 
@@ -22,10 +22,12 @@ def OFPExpActionSetState(state, table_id, hard_timeout=0, idle_timeout=0, hard_r
     state            State instance
     state_mask       State mask
     table_id         Stage ID
+    bit              Enable/Disable swapping of the source/destination addresses a
+                     and source/destination ports in the case of bi-flow identificatin
     ================ ======================================================
     """
     act_type=bebaproto.OFPAT_EXP_SET_STATE
-    data=struct.pack(bebaproto.OFP_EXP_ACTION_SET_STATE_PACK_STR, act_type, state, state_mask, table_id, hard_rollback, idle_rollback, hard_timeout*1000000, idle_timeout*1000000)
+    data=struct.pack(bebaproto.OFP_EXP_ACTION_SET_STATE_PACK_STR, act_type, state, state_mask, table_id ,hard_rollback, idle_rollback, hard_timeout*1000000, idle_timeout*1000000,bit)
     return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0xBEBABEBA, data=data)
 
 def OFPExpActionSetGlobalState(global_state, global_state_mask=0xffffffff):
@@ -68,7 +70,7 @@ def OFPExpMsgConfigureStatefulTable(datapath, stateful, table_id):
     exp_type=bebaproto.OFPT_EXP_STATE_MOD
     return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
 
-def OFPExpMsgKeyExtract(datapath, command, fields, table_id):
+def OFPExpMsgKeyExtract(datapath, command, fields, table_id,bit=0):
     field_count=len(fields)
 
     if field_count > bebaproto.MAX_FIELD_COUNT:
@@ -76,7 +78,7 @@ def OFPExpMsgKeyExtract(datapath, command, fields, table_id):
         LOG.debug("OFPExpMsgKeyExtract: Number of fields given > MAX_FIELD_COUNT")
 
     data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
-    data+=struct.pack(bebaproto.OFP_EXP_STATE_MOD_EXTRACTOR_PACK_STR,table_id,field_count)
+    data+=struct.pack(bebaproto.OFP_EXP_STATE_MOD_EXTRACTOR_PACK_STR,table_id,bit,field_count)
     field_extract_format='!I'
 
     if field_count <= bebaproto.MAX_FIELD_COUNT:

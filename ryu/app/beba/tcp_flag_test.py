@@ -38,21 +38,28 @@ class TcpFlagTest(app_manager.RyuApp):
         """ Set lookup extractor = {src ip} """
         req = osparser.OFPExpMsgKeyExtract(datapath=datapath,
                 command=osp.OFPSC_EXP_SET_L_EXTRACTOR,
-                fields=[ofp.OXM_OF_IPV4_SRC,ofp.OXM_OF_TCP_DST,ofp.OXM_OF_TCP_FLAGS],
-                table_id=0)
+                fields=[ofp.OXM_OF_IPV4_SRC,ofp.OXM_OF_IPV4_DST],
+                table_id=0,bit=0)
         datapath.send_msg(req)
-
+        
         """ Set update extractor = {dst ip}  """
         req = osparser.OFPExpMsgKeyExtract(datapath=datapath,
                 command=osp.OFPSC_EXP_SET_U_EXTRACTOR,
-                fields=[ofp.OXM_OF_IPV4_SRC,ofp.OXM_OF_TCP_DST,ofp.OXM_OF_TCP_FLAGS],
-                table_id=0)
+                fields=[ofp.OXM_OF_IPV4_SRC,ofp.OXM_OF_IPV4_DST],
+                table_id=0,bit=0)
+        datapath.send_msg(req)
+
+        req = osparser.OFPExpMsgKeyExtract(datapath=datapath,
+                command=osp.OFPSC_EXP_SET_U_EXTRACTOR,
+                fields=[ofp.OXM_OF_IPV4_DST,ofp.OXM_OF_IPV4_SRC],
+                table_id=0,bit=1)
         datapath.send_msg(req)
 
         # Try to install rule with TCP flag
         LOG.info("Confiuguring Flow table ...")
         match = ofparser.OFPMatch(state=0, eth_type=0x0800,ipv4_src=('10.0.0.0','255.0.0.0'),ip_proto=6,tcp_src=80,tcp_flags=(1,1))
-        actions = [osparser.OFPExpActionSetState(state=1, table_id=0, hard_timeout=10), ofparser.OFPActionOutput(2)]
+        actions = [osparser.OFPExpActionSetState(state=1, table_id=0, hard_timeout=10,bit=0),
+                   osparser.OFPExpActionSetState(state=1, table_id=0, hard_timeout=10,bit=1)]
 
         inst = [ofparser.OFPInstructionActions(ofp.OFPIT_APPLY_ACTIONS, actions)]
         mod = ofparser.OFPFlowMod(datapath=datapath, table_id=0,priority=0, match=match, instructions=inst)
