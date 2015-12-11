@@ -84,7 +84,7 @@ class TcpFlagTest(app_manager.RyuApp):
         buff = ev.msg.body.data
         tmp_list = osparser.OFPStateStats.parser(buff,0)    
         for i in tmp_list:
-            out_str = "----> ROUND: " + str(self.cnt) + " PAYLOAD:" + str(i) + " STATE: " + str(i.entry.state) + " KEY: " + str(i.entry.key)
+            out_str = "----> ROUND: " + str(self.cnt) + " PAYLOAD:" + str(i) + " STATE: " + str(i.entry.state) + " KEY: " + str(i.entry.key) + "KEY_CNT: " + str(i.entry.key_count)
             LOG.info(out_str)
         self.cnt = self.cnt + 1
         # Send the message again
