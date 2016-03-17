@@ -45,6 +45,21 @@ def OFPExpActionSetGlobalState(global_state, global_state_mask=0xffffffff):
     data=struct.pack(bebaproto.OFP_EXP_ACTION_SET_GLOBAL_STATE_PACK_STR, act_type, global_state, global_state_mask)
     return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0XBEBABEBA, data=data)
 
+def OFPExpActionIncState(table_id):
+    """ 
+    Returns a Set Inc state experimenter action
+
+    This action increment the current state.
+    ================ ======================================================
+    Attribute        Description
+    ================ ======================================================
+    table_id         Stage ID
+    ================ ======================================================
+    """
+    act_type=bebaproto.OFPAT_EXP_INC_STATE
+    data=struct.pack(bebaproto.OFP_EXP_ACTION_INC_STATE_PACK_STR, act_type, table_id)
+    return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0xBEBABEBA, data=data)
+
 def OFPExpMsgConfigureStatefulTable(datapath, stateful, table_id):
     command=bebaproto.OFPSC_EXP_STATEFUL_TABLE_CONFIG
     data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
