@@ -1,6 +1,4 @@
 import logging
-import sys
-sys.path.append('/home/beba/ryu/ryu/app/openstate')
 import selectivemonitoring_1
 import math
 from ryu.controller import ofp_event
@@ -12,9 +10,9 @@ import ryu.ofproto.ofproto_v1_3_parser as ofparser
 import ryu.ofproto.beba_v1_0 as bebaproto
 import ryu.ofproto.beba_v1_0_parser as bebaparser
 
-LOG = logging.getLogger('app.openstate.simplemonitoring')
+LOG = logging.getLogger('app.beba.simplemonitoring')
 
-class SimpleMonitoring(selectivemonitoring_1.OpenStateSelectiveMonitoring_1):
+class SimpleMonitoring(selectivemonitoring_1.BebaSelectiveMonitoring_1):
 
     def __init__(self, *args, **kwargs):
         super(SimpleMonitoring, self).__init__(*args, **kwargs)
@@ -44,27 +42,15 @@ class SimpleMonitoring(selectivemonitoring_1.OpenStateSelectiveMonitoring_1):
             for dp in self.datapaths.values():
                 self._request_stats(dp)
             hub.sleep(5)
-
-    def del_flow_state_handler(self, datapath):
-        # Converting str keys into int list
-        for key in self.IPdst.keys():
-            key = key[1:-1]
-            key_list = []
-            last =0
-            for i,c in enumerate(key):
-                if ","==c:
-                    key_list.append(int(key[last:i]))
-                    last = i+1
-                if i== len(key)-1:
-                    key_list.append(int(key[last:i+1]))
-            state = bebaparser.OFPExpMsgDelFlowState(datapath=datapath, keys=key_list, table_id=0) # Delete the flow of each IP_addr
-            datapath.send_msg(state)
-        self.IPdst.clear() # Remove all entries in the dictionary
-        LOG.info("Flow States Deleted")
+            # Remove all entries in the dictionary
+            self.IPsrc.clear() 
+            self.Portsrc.clear() 
+            self.Portdst.clear() 
+            self.IPdst.clear() 
 
     def _request_stats(self, datapath):
         for table in range(4):
-            req = bebaparser.OFPExpStateStatsMultipartRequest(datapath, table_id=table)
+            req = bebaparser.OFPExpStateStatsMultipartRequestAndDelete(datapath, table_id=table)
             datapath.send_msg(req)
 
     def convertPort2Int(self, keys):
@@ -79,7 +65,7 @@ class SimpleMonitoring(selectivemonitoring_1.OpenStateSelectiveMonitoring_1):
         datapath = msg.datapath
 
         if (msg.body.experimenter == 0XBEBABEBA):
-          if(msg.body.exp_type == bebaproto.OFPMP_EXP_STATE_STATS):
+          if(msg.body.exp_type == bebaproto.OFPMP_EXP_STATE_STATS_AND_DELETE):
             data = msg.body.data
             state_stats_list = bebaparser.OFPStateStats.parser(data,0)
             if (state_stats_list!=0):

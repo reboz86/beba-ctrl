@@ -123,6 +123,7 @@ OFPAT_EXP_INC_STATE = 2
 #enum ofp_stats_extension_commands
 OFPMP_EXP_STATE_STATS = 0
 OFPMP_EXP_GLOBAL_STATE_STATS = 1
+OFPMP_EXP_STATE_STATS_AND_DELETE = 2
 
 # enum ofp_error_type
 OFPET_EXPERIMENTER = 0xffff
