@@ -8,17 +8,17 @@ import ryu.ofproto.ofproto_v1_3_parser as ofparser
 import ryu.ofproto.beba_v1_0 as bebaproto
 import ryu.ofproto.beba_v1_0_parser as bebaparser
 
-LOG = logging.getLogger('app.openstate.selectivemonitoring')
+LOG = logging.getLogger('app.beba.selectivemonitoring')
 LOG.info("Features monitored: IP SRC/DST, PORT SRC/DST")
 
 # Number of switch ports
-N = 4
+N = 5
 LOG.info("Support max %d ports per switch" % N)
 
-class OpenStateSelectiveMonitoring_1(app_manager.RyuApp):
+class BebaSelectiveMonitoring_1(app_manager.RyuApp):
 
 	def __init__(self, *args, **kwargs):
-		super(OpenStateSelectiveMonitoring_1, self).__init__(*args, **kwargs)
+		super(BebaSelectiveMonitoring_1, self).__init__(*args, **kwargs)
 
 	@set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
 	def switch_features_handler(self, ev):
