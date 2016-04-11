@@ -87,20 +87,20 @@ class OSMacLearning(app_manager.RyuApp):
 				# Triggers flow mod
 				self.add_flow(datapath=datapath, table_id=0, priority=0, match=match, actions=actions)
 
-        # State Sync: Parse flow mod notification message
-	@set_ev_cls(ofp_event.EventOFPExperimenterStatsReply, MAIN_DISPATCHER)
+	# State Sync: Parse flow mod notification message
+	@set_ev_cls(ofp_event.EventOFPExperimenter, MAIN_DISPATCHER)
 	def packet_in_handler(self, event):
 		msg = event.msg
 
-		if(msg.body.experimenter==0xBEBABEBA and msg.body.exp_type==bebaproto.OFPT_EXP_FLOW_NOTIFICATION) :
-			(table_id, ntf_type)= struct.unpack('!II', msg.body.data[:struct.calcsize("!II")])
+		if(msg.experimenter==0xBEBABEBA and msg.exp_type==bebaproto.OFPT_EXP_FLOW_NOTIFICATION) :
+			(table_id, ntf_type)= struct.unpack('!II', msg.data[:struct.calcsize("!II")])
 			if ofp.OFPT_FLOW_MOD == ntf_type:
 				print "*************************************"
 				print ("Flow Mode Notification")
 				print ("Table ID: "+ str(table_id))
-				match = ofparser.OFPMatch.parser(msg.body.data, struct.calcsize("!II"))	
+				match = ofparser.OFPMatch.parser(msg.data, struct.calcsize("!II"))	
 				print ("   Match: "+ str(match))
-				data = msg.body.data[struct.calcsize('!II')+match.length:]
+				data = msg.data[struct.calcsize('!II')+match.length:]
 				form = '!'+str(len(data)/struct.calcsize('!I'))+'I'
 				instructions = struct.unpack_from(form, data, 0)
 				print "Number of instructions: " + str(instructions[0])
