@@ -21,7 +21,7 @@ class NativeMonitoring(app_manager.RyuApp):
         super(NativeMonitoring, self).__init__(*args, **kwargs)
         self.mac_to_port = {}
         self.datapaths = {}
-        self.nbRules = 0
+        self.nb_rules = 0
         self.step = 1
         self.t0 = self.t1 = self.timeDiff = datetime.now()
         self.reaction_times = {}  # Dictionary of reaction times: step, reaction time
@@ -40,7 +40,7 @@ class NativeMonitoring(app_manager.RyuApp):
         f.close()
         while True:
             for dp in self.datapaths.values():
-                LOG.info("Requesting statistics for switch %d (nb rules=%d)", dp.id, self.nbRules)
+                LOG.info("Requesting statistics for switch %d (nb rules=%d)", dp.id, self.nb_rules)
                 self._request_stats(dp)
             hub.sleep(self.monitor_interval)
 
@@ -89,7 +89,7 @@ class NativeMonitoring(app_manager.RyuApp):
         # """ Drop IP-dst Broadcast (for DEMO/EVAL only) """
         match = parser.OFPMatch(eth_type=0x0800, ipv4_dst="255.255.255.255")
         actions = []
-        self.nbRules += 1
+        self.nb_rules += 1
         self.add_flow(datapath, 0, match=match, actions=actions)
 
         # install table-miss flow entry
@@ -103,7 +103,7 @@ class NativeMonitoring(app_manager.RyuApp):
         actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER, ofproto.OFPCML_NO_BUFFER)]
 
         # Table 0
-        self.nbRules += 1
+        self.nb_rules += 1
         self.add_flow(datapath, 0, match, actions)
         # Table 1
         # self.add_flow(datapath, 1, 0, match, actions)
@@ -144,9 +144,9 @@ class NativeMonitoring(app_manager.RyuApp):
         LOG.info('Got %d flow entries in %s', len(flows), self.timeDiff.total_seconds())
         LOG.info('ReactionTimes: %s', self.reaction_times)
         # Step | ReactionTime | IpFlowEntriesRep | FlowStatRepSize | TotalFlowEntries | ReqFrequency
-        # LOG.info('%s %s %s %s %s %s', self.step, self.timeDiff.total_seconds(), len(flows), self.rep_size, self.nbRules, self.monitor_interval)
+        # LOG.info('%s %s %s %s %s %s', self.step, self.timeDiff.total_seconds(), len(flows), self.rep_size, self.nb_rules, self.monitor_interval)
         result = str(self.step) + ' ' + str(self.timeDiff.total_seconds()) + ' ' + str(len(flows)) + ' ' + str(
-            self.rep_size) + ' ' + str(self.nbRules) + ' ' + str(self.monitor_interval)
+            self.rep_size) + ' ' + str(self.nb_rules) + ' ' + str(self.monitor_interval)
         f = open(self.output_file, 'ab')
         f.write(result + '\n')
         f.close()
@@ -196,7 +196,7 @@ class NativeMonitoring(app_manager.RyuApp):
         if (out_port != ofproto.OFPP_FLOOD and eth.ethertype == ether_types.ETH_TYPE_ARP):
             # match = parser.OFPMatch(in_port=in_port, eth_dst=dst)
             match = parser.OFPMatch(eth_dst=dst, eth_type=ether_types.ETH_TYPE_ARP)
-            self.nbRules += 1
+            self.nb_rules += 1
             # verify if we have a valid buffer_id, if yes avoid to send both
             # flow_mod & packet_out
             if msg.buffer_id != ofproto.OFP_NO_BUFFER:
@@ -213,7 +213,7 @@ class NativeMonitoring(app_manager.RyuApp):
             # LOG.info("Install IP forwarding rule: IP src %s ==> IP dst: %s", ipsrc, ipdst)
 
             match = parser.OFPMatch(eth_dst=dst, eth_type=ether_types.ETH_TYPE_IP, ipv4_src=ipsrc, ipv4_dst=ipdst)
-            self.nbRules += 1
+            self.nb_rules += 1
 
             # verify if we have a valid buffer_id, if yes avoid to send both
             # flow_mod & packet_out
