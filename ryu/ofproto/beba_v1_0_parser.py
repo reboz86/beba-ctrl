@@ -10,7 +10,8 @@ import six
 
 LOG = logging.getLogger('ryu.ofproto.beba_v1_0_parser')
 
-def OFPExpActionSetState(state, table_id, bit=0, hard_timeout=0, idle_timeout=0, hard_rollback=0, idle_rollback=0, state_mask=0xffffffff):
+def OFPExpActionSetState(state, table_id, bit=0, hard_timeout=0, idle_timeout=0, hard_rollback=0, idle_rollback=0, state_mask=0xffffffff, fields=[]):
+def OFPExpActionSetState(state, table_id, bit=0, hard_timeout=0, idle_timeout=0, hard_rollback=0, idle_rollback=0, state_mask=0xffffffff, fields=[]):
     """ 
     Returns a Set state experimenter action
 
@@ -26,8 +27,25 @@ def OFPExpActionSetState(state, table_id, bit=0, hard_timeout=0, idle_timeout=0,
                      and source/destination ports in the case of bi-flow identificatin
     ================ ======================================================
     """
+    field_count=len(fields)
+
+    if field_count > bebaproto.MAX_FIELD_COUNT:
+        field_count = 0
+        LOG.debug("OFPExpActionSetState: Number of fields given > MAX_FIELD_COUNT")
+
     act_type=bebaproto.OFPAT_EXP_SET_STATE
-    data=struct.pack(bebaproto.OFP_EXP_ACTION_SET_STATE_PACK_STR, act_type, state, state_mask, table_id ,hard_rollback, idle_rollback, hard_timeout*1000000, idle_timeout*1000000,bit)
+    data=struct.pack(bebaproto.OFP_EXP_ACTION_SET_STATE_PACK_STR, act_type, state, state_mask, table_id, hard_rollback, idle_rollback, hard_timeout*1000000, idle_timeout*1000000, bit, field_count)
+
+    field_extract_format='!I'
+
+    if field_count <= bebaproto.MAX_FIELD_COUNT:
+        for f in range(field_count):
+            data+=struct.pack(field_extract_format,fields[f])
+    
+    # Actions must be 64 bit aligned! Fields are 32bits, so we need padding only if field_count is odd
+    if field_count>0 and field_count%2!=0:
+        data+=struct.pack(field_extract_format,0)
+
     return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0xBEBABEBA, data=data)
 
 def OFPExpActionSetGlobalState(global_state, global_state_mask=0xffffffff):
@@ -56,10 +74,157 @@ def OFPExpActionIncState(table_id):
     Attribute        Description
     ================ ======================================================
     table_id         Stage ID
-    ================ ======================================================
     """
     act_type=bebaproto.OFPAT_EXP_INC_STATE
     data=struct.pack(bebaproto.OFP_EXP_ACTION_INC_STATE_PACK_STR, act_type, table_id)
+
+    return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0xBEBABEBA, data=data)
+
+def OFPExpActionSetDataVariable(table_id, opcode, output_gd_id=None, output_fd_id=None, operand_1_fd_id=None, operand_1_gd_id=None, operand_1_hf_id=None, operand_2_fd_id=None, operand_2_gd_id=None, operand_2_hf_id=None, operand_2_cost=None, operand_3_fd_id=None, operand_3_gd_id=None, operand_3_hf_id=None,operand_4_fd_id=None, operand_4_gd_id=None, operand_4_hf_id=None, coeff_1=0, coeff_2=0, coeff_3=0, coeff_4=0, fields=[]):
+    """ 
+    Returns a Set Data Variable experimenter action
+
+    This action updates the flow data/global data variable.
+    ================ ======================================================
+    Attribute        Description
+    ================ ======================================================
+    table_id         Stage ID
+    opcode           Operation code
+    output_XX_id     ID of destination global/data variable
+    operand_1_XX_id  ID of first global/data variable/header field
+    operand_2_XX_id  ID of second global/data variable/header field/constant
+    operand_3_XX_id  ID of third global/data variable/header field
+    operand_4_XX_id  ID of fourth global/data variable/header field
+    ================ ======================================================
+    """
+    field_count=len(fields)
+
+    if field_count > bebaproto.MAX_FIELD_COUNT:
+        field_count = 0
+        LOG.debug("OFPExpActionSetState: Number of fields given > MAX_FIELD_COUNT")
+
+    act_type=bebaproto.OFPAT_EXP_SET_DATA_VAR
+
+    if opcode>bebaproto.OPCODE_POLY_SUM:
+        LOG.debug("OFPExpActionSetDataVariable: invalid opcode")
+
+    if sum(1 for i in [output_gd_id,output_fd_id] if i != None)!=1:
+        LOG.debug("OFPExpActionSetDataVariable: you need to choose exactly one type of output operand")
+
+    if sum(1 for i in [operand_1_fd_id,operand_1_gd_id,operand_1_hf_id] if i != None)!=1:
+        LOG.debug("OFPExpActionSetDataVariable: you need to choose exactly one type of first operand")
+
+    if sum(1 for i in [operand_2_fd_id,operand_2_gd_id,operand_2_hf_id,operand_2_cost] if i != None)!=1:
+        LOG.debug("OFPExpActionSetDataVariable: you need to choose exactly one type of second output operand")
+
+    #TODO Davide: check for third/fourth operand (only some opcodes have more than 2)
+
+    # operand_types=aabbccdde0000000 where aa=operand_1_type, bb=operand_2_type, cc=operand_3_type, dd=operand_4_type and e=output_type
+    if operand_1_fd_id!=None:
+        if operand_1_fd_id<0 or operand_1_fd_id>bebaproto.MAX_FLOW_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpActionSetDataVariable: invalid flow data variable ID")
+        operand_types=bebaproto.OPERAND_TYPE_FLOW_DATA_VAR<<14
+        operand_1=operand_1_fd_id
+    elif operand_1_gd_id!=None:
+        if operand_1_gd_id<0 or operand_1_gd_id>bebaproto.MAX_GLOBAL_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpActionSetDataVariable: invalid global data variable ID")
+        operand_types=bebaproto.OPERAND_TYPE_GLOBAL_DATA_VAR<<14
+        operand_1=operand_1_gd_id
+    elif operand_1_hf_id!=None:
+        if operand_1_hf_id<0 or operand_1_hf_id>bebaproto.MAX_HEADER_FIELDS-1:
+            LOG.debug("OFPExpActionSetDataVariable: invalid header field ID")
+        operand_types=bebaproto.OPERAND_TYPE_HEADER_FIELD<<14
+        operand_1=operand_1_hf_id
+
+    if operand_2_fd_id!=None:
+        if operand_2_fd_id<0 or operand_2_fd_id>bebaproto.MAX_FLOW_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpActionSetDataVariable: invalid flow data variable ID")
+        operand_types=operand_types | bebaproto.OPERAND_TYPE_FLOW_DATA_VAR<<12
+        operand_2=operand_2_fd_id
+    elif operand_2_gd_id!=None:
+        if operand_2_gd_id<0 or operand_2_gd_id>bebaproto.MAX_GLOBAL_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpActionSetDataVariable: invalid global data variable ID")
+        operand_types=operand_types | bebaproto.OPERAND_TYPE_GLOBAL_DATA_VAR<<12
+        operand_2=operand_2_gd_id
+    elif operand_2_hf_id!=None:
+        if operand_2_hf_id<0 or operand_2_hf_id>bebaproto.MAX_HEADER_FIELDS-1:
+            LOG.debug("OFPExpActionSetDataVariable: invalid header field ID")
+        operand_types=operand_types | bebaproto.OPERAND_TYPE_HEADER_FIELD<<12
+        operand_2=operand_2_hf_id
+    elif operand_2_cost!=None:
+        if operand_2_cost<0 or operand_2_cost>255:
+            LOG.debug("OFPExpActionSetDataVariable: constant is too big")
+        operand_types=operand_types | bebaproto.OPERAND_TYPE_CONSTANT<<12
+        operand_2=operand_2_cost
+
+    if operand_3_fd_id!=None:
+        if operand_3_fd_id<0 or operand_3_fd_id>bebaproto.MAX_FLOW_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpActionSetDataVariable: invalid flow data variable ID")
+        operand_types=operand_types | bebaproto.OPERAND_TYPE_FLOW_DATA_VAR<<10
+        operand_3=operand_3_fd_id
+    elif operand_3_gd_id!=None:
+        if operand_3_gd_id<0 or operand_3_gd_id>bebaproto.MAX_GLOBAL_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpActionSetDataVariable: invalid global data variable ID")
+        operand_types=operand_types | bebaproto.OPERAND_TYPE_GLOBAL_DATA_VAR<<10
+        operand_3=operand_3_gd_id
+    elif operand_3_hf_id!=None:
+        if operand_3_hf_id<0 or operand_3_hf_id>bebaproto.MAX_HEADER_FIELDS-1:
+            LOG.debug("OFPExpActionSetDataVariable: invalid header field ID")
+        operand_types=operand_types | bebaproto.OPERAND_TYPE_HEADER_FIELD<<10
+        operand_3=operand_3_hf_id
+    else:
+        operand_3 = 0
+
+    if operand_4_fd_id!=None:
+        if operand_4_fd_id<0 or operand_4_fd_id>bebaproto.MAX_FLOW_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpActionSetDataVariable: invalid flow data variable ID")
+        operand_types=operand_types | bebaproto.OPERAND_TYPE_FLOW_DATA_VAR<<8
+        operand_4=operand_4_fd_id
+    elif operand_4_gd_id!=None:
+        if operand_4_gd_id<0 or operand_4_gd_id>bebaproto.MAX_GLOBAL_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpActionSetDataVariable: invalid global data variable ID")
+        operand_types=operand_types | bebaproto.OPERAND_TYPE_GLOBAL_DATA_VAR<<8
+        operand_4=operand_4_gd_id
+    elif operand_4_hf_id!=None:
+        if operand_4_hf_id<0 or operand_4_hf_id>bebaproto.MAX_HEADER_FIELDS-1:
+            LOG.debug("OFPExpActionSetDataVariable: invalid header field ID")
+        operand_types=operand_types | bebaproto.OPERAND_TYPE_HEADER_FIELD<<8
+        operand_4=operand_4_hf_id
+    else:
+        operand_4 = 0
+
+    if coeff_1<-128 or coeff_1>127:
+        LOG.debug("OFPExpActionSetDataVariable: requires -128 <= coeff_1 <= 127")
+    if coeff_2<-128 or coeff_2>127:
+        LOG.debug("OFPExpActionSetDataVariable: requires -128 <= coeff_2 <= 127")
+    if coeff_3<-128 or coeff_3>127:
+        LOG.debug("OFPExpActionSetDataVariable: requires -128 <= coeff_3 <= 127")
+    if coeff_4<-128 or coeff_4>127:
+        LOG.debug("OFPExpActionSetDataVariable: requires -128 <= coeff_4 <= 127")
+
+    if output_fd_id!=None:
+        if output_fd_id<0 or output_fd_id>bebaproto.MAX_FLOW_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpActionSetDataVariable: invalid flow data variable ID")
+        operand_types=operand_types | bebaproto.OPERAND_TYPE_FLOW_DATA_VAR<<7
+        output=output_fd_id
+    elif output_gd_id!=None:
+        if output_gd_id<0 or output_gd_id>bebaproto.MAX_GLOBAL_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpActionSetDataVariable: invalid global data variable ID")
+        operand_types=operand_types | bebaproto.OPERAND_TYPE_GLOBAL_DATA_VAR<<7
+        output=output_gd_id
+    
+    data=struct.pack(bebaproto.OFP_EXP_ACTION_SET_DATA_VARIABLE_PACK_STR, act_type, operand_types, table_id, opcode, output, operand_1, operand_2, operand_3, operand_4, coeff_1, coeff_2, coeff_3, coeff_4, field_count)
+
+    field_extract_format='!I'
+
+    if field_count <= bebaproto.MAX_FIELD_COUNT:
+        for f in range(field_count):
+            data+=struct.pack(field_extract_format,fields[f])
+    
+    # Actions must be 64 bit aligned! Fields are 32bits, so we need padding only if field_count is odd
+    if field_count>0 and field_count%2!=0:
+        data+=struct.pack(field_extract_format,0)
+
     return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0xBEBABEBA, data=data)
 
 def OFPExpMsgConfigureStatefulTable(datapath, stateful, table_id):
@@ -87,6 +252,110 @@ def OFPExpMsgKeyExtract(datapath, command, fields, table_id,bit=0):
     
     exp_type=bebaproto.OFPT_EXP_STATE_MOD
     return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
+
+def OFPExpMsgSetCondition(datapath, table_id, condition_id, condition, operand_1_fd_id=None, operand_1_gd_id=None, operand_1_hf_id=None, operand_2_fd_id=None, operand_2_gd_id=None, operand_2_hf_id=None):
+    command=bebaproto.OFPSC_EXP_SET_CONDITION
+
+    if condition_id<0 or condition_id>bebaproto.MAX_CONDITIONS_NUM-1:
+        LOG.debug("OFPExpMsgSetCondition: invalid condition_id")
+
+    if condition<0 or condition>5:
+        LOG.debug("OFPExpMsgSetCondition: invalid condition")
+
+    if sum(1 for i in [operand_1_fd_id,operand_1_gd_id,operand_1_hf_id] if i != None)!=1:
+        LOG.debug("OFPExpMsgSetCondition: you need to choose exactly one type of operand_1")        
+
+    if sum(1 for i in [operand_2_fd_id,operand_2_gd_id,operand_2_hf_id] if i != None)!=1:
+        LOG.debug("OFPExpMsgSetCondition: you need to choose exactly one type of operand_2")
+
+    # operand_types=xxyy0000 where xx=operand_1_type and yy=operand_2_type
+    if operand_1_fd_id!=None:
+        if operand_1_fd_id<0 or operand_1_fd_id>bebaproto.MAX_FLOW_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpMsgSetCondition: invalid flow data variable ID")
+        operand_types=bebaproto.OPERAND_TYPE_FLOW_DATA_VAR<<6
+        operand_1=operand_1_fd_id
+    elif operand_1_gd_id!=None:
+        if operand_1_gd_id<0 or operand_1_gd_id>bebaproto.MAX_GLOBAL_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpMsgSetCondition: invalid global data variable ID")
+        operand_types=bebaproto.OPERAND_TYPE_GLOBAL_DATA_VAR<<6
+        operand_1=operand_1_gd_id
+    elif operand_1_hf_id!=None:
+        if operand_1_hf_id<0 or operand_1_hf_id>bebaproto.MAX_HEADER_FIELDS-1:
+            LOG.debug("OFPExpMsgSetCondition: invalid header field ID")
+        operand_types=bebaproto.OPERAND_TYPE_HEADER_FIELD<<6
+        operand_1=operand_1_hf_id
+
+    if operand_2_fd_id!=None:
+        if operand_2_fd_id<0 or operand_2_fd_id>bebaproto.MAX_FLOW_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpMsgSetCondition: invalid flow data variable ID")
+        operand_types=operand_types | bebaproto.OPERAND_TYPE_FLOW_DATA_VAR<<4
+        operand_2=operand_2_fd_id
+    elif operand_2_gd_id!=None:
+        if operand_2_gd_id<0 or operand_2_gd_id>bebaproto.MAX_GLOBAL_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpMsgSetCondition: invalid global data variable ID")
+        operand_types=operand_types | bebaproto.OPERAND_TYPE_GLOBAL_DATA_VAR<<4
+        operand_2=operand_2_gd_id
+    elif operand_2_hf_id!=None:
+        if operand_2_hf_id<0 or operand_2_hf_id>bebaproto.MAX_HEADER_FIELDS-1:
+            LOG.debug("OFPExpMsgSetCondition: invalid header field ID")
+        operand_types=operand_types | bebaproto.OPERAND_TYPE_HEADER_FIELD<<4
+        operand_2=operand_2_hf_id    
+
+    data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
+    data+=struct.pack(bebaproto.OFP_EXP_STATE_MOD_SET_CONDITION_PACK_STR,table_id,condition_id,condition,operand_types,operand_1,operand_2)
+    
+    exp_type=bebaproto.OFPT_EXP_STATE_MOD
+    return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
+
+def OFPExpMsgsSetGlobalDataVariable(datapath, table_id, global_data_variable_id, value, mask=0xffffffff):
+    command=bebaproto.OFPSC_EXP_SET_GLOBAL_DATA_VAR
+
+    if global_data_variable_id<0 or global_data_variable_id>bebaproto.MAX_GLOBAL_DATA_VAR_NUM-1:
+        LOG.debug("OFPExpMsgsSetGlobalDataVariable: invalid global_data_variable_id")
+
+    data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
+    data+=struct.pack(bebaproto.OFP_EXP_STATE_MOD_SET_GLOBAL_DATA_VAR_PACK_STR,table_id,global_data_variable_id,value,mask)
+    
+    exp_type=bebaproto.OFPT_EXP_STATE_MOD
+    return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
+
+def OFPExpMsgSetFlowDataVariable(datapath, table_id, flow_data_variable_id, keys, value, mask=0xffffffff):
+    command=bebaproto.OFPSC_EXP_SET_FLOW_DATA_VAR
+
+    key_count=len(keys)
+
+    if flow_data_variable_id<0 or flow_data_variable_id>bebaproto.MAX_FLOW_DATA_VAR_NUM-1:
+        LOG.debug("OFPExpMsgSetFlowDataVariable: invalid flow_data_variable_id")
+
+    if key_count > bebaproto.MAX_KEY_LEN:
+        key_count = 0
+        LOG.debug("OFPExpMsgSetFlowDataVariable: Number of keys given > MAX_KEY_LEN")
+
+    data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
+    data+=struct.pack(bebaproto.OFP_EXP_STATE_MOD_SET_FLOW_DATA_VAR_PACK_STR, table_id, flow_data_variable_id, key_count, value, mask)
+    field_extract_format='!B'
+
+    if key_count <= bebaproto.MAX_KEY_LEN:
+        for f in range(key_count):
+                data+=struct.pack(field_extract_format,keys[f])
+    
+    exp_type=bebaproto.OFPT_EXP_STATE_MOD
+    return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
+
+def OFPExpMsgHeaderFieldExtract(datapath, table_id, extractor_id, field):
+    command=bebaproto.OFPSC_EXP_SET_HEADER_FIELD_EXTRACTOR
+
+    if extractor_id<0 or extractor_id>bebaproto.MAX_HEADER_FIELDS-1:
+        LOG.debug("OFPExpMsgHeaderFieldExtract: invalid extractor_id")
+
+    # TODO Davide: check if OXM_LENGTH(field)<=32 bit
+
+    data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
+    data+=struct.pack(bebaproto.OFP_EXP_STATE_MOD_SET_HEADER_EXTRACTOR_PACK_STR,table_id,extractor_id,field)
+
+    exp_type=bebaproto.OFPT_EXP_STATE_MOD
+    return ofproto_parser.OFPExperimenter(datapath=datapath, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
+
 
 def OFPExpMsgSetFlowState(datapath, state, keys, table_id, idle_timeout=0, idle_rollback=0, hard_timeout=0, hard_rollback=0, state_mask=0xffffffff):
     key_count=len(keys)
@@ -303,6 +572,7 @@ class OFPStateEntry(object):
         self.key_count=key_count
         self.key = key
         self.state = state
+        # TODO Davide: handle flow_data_var
     
     @classmethod
     def parser(cls, buf, offset):
