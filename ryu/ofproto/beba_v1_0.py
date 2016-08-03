@@ -224,3 +224,19 @@ oxm_types = [
 
 # generate utility methods
 ofproto_utils.generate(__name__)
+
+def _oxm_tlv_header(class_, field, hasmask, length):
+    return (class_ << 16) | (field << 9) | (hasmask << 8) | length
+
+
+def oxm_tlv_exp_header(field, length):
+    return _oxm_tlv_header(0xFFFF, field, 0, length+4)
+
+# Generate OXM_EXP_* attributes
+import sys
+mod = sys.modules[__name__]
+for i in oxm_types:
+    uk = i.name.upper()
+    ofpxmt = i.oxm_field
+    td = i.type
+    setattr(mod, 'OXM_EXP_' + uk, mod.oxm_tlv_exp_header(ofpxmt, td.size))
