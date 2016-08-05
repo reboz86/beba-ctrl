@@ -227,6 +227,39 @@ def OFPExpActionSetDataVariable(table_id, opcode, output_gd_id=None, output_fd_i
 
     return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0xBEBABEBA, data=data)
 
+def OFPExpActionWriteContextToField(src_type,dst_field,src_id=None):
+    """ 
+    Returns a Write Context to Field experimenter action
+
+    This action write data context informations into the packet header
+    ================ ======================================================
+    Attribute        Description
+    ================ ======================================================
+    src_type         Source type
+    src_type         Source ID
+    dst_field        Destination field
+    ================ ======================================================
+    """
+    act_type=bebaproto.OFPAT_EXP_WRITE_CONTEXT_TO_FIELD
+
+    if src_type<bebaproto.SOURCE_TYPE_FLOW_DATA_VAR or src_type>bebaproto.SOURCE_TYPE_STATE:
+        LOG.debug("OFPExpActionWriteContextToField: invalid src_type")
+
+    if src_type in [bebaproto.SOURCE_TYPE_FLOW_DATA_VAR,bebaproto.SOURCE_TYPE_GLOBAL_DATA_VAR] and src_id==None:
+        LOG.debug("OFPExpActionWriteContextToField: src_id cannot be None with \"flow_data_var\" or \"global_data_var\" type")
+
+    if src_type==bebaproto.SOURCE_TYPE_FLOW_DATA_VAR:
+        if src_id<0 or src_id>bebaproto.MAX_FLOW_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpActionWriteContextToField: invalid flow data variable ID")
+    elif src_type==bebaproto.SOURCE_TYPE_GLOBAL_DATA_VAR:
+        if src_id<0 or src_id>bebaproto.MAX_GLOBAL_DATA_VAR_NUM-1:
+            LOG.debug("OFPExpActionWriteContextToField: invalid global data variable ID")
+    elif src_type==bebaproto.SOURCE_TYPE_STATE:
+        src_id=0
+
+    data=struct.pack(bebaproto.OFP_EXP_WRITE_CONTEXT_TO_FIELD_PACK_STR, act_type, src_type, src_id, dst_field)
+    return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0xBEBABEBA, data=data)
+
 def OFPExpMsgConfigureStatefulTable(datapath, stateful, table_id):
     command=bebaproto.OFPSC_EXP_STATEFUL_TABLE_CONFIG
     data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
