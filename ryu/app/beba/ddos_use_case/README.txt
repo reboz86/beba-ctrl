@@ -45,7 +45,7 @@ DDoS Use Case :
 2/ (controller-side)
 --
 cd /beba-ctrl/ryu/app/beba/ddos_use_case
-sudo ryu-manager simplemonitoring_1.py
+sudo ryu-manager simple_monitoring_1.py
 
 3/ (switch-side)
 --

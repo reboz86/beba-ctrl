@@ -10,10 +10,10 @@ import ryu.ofproto.ofproto_v1_3_parser as ofparser
 import ryu.ofproto.beba_v1_0 as bebaproto
 import ryu.ofproto.beba_v1_0_parser as bebaparser
 
-LOG = logging.getLogger('app.openstate.simple_monitoring')
+LOG = logging.getLogger('app.beba.simple_monitoring')
 
 
-class SimpleMonitoring(selective_monitoring.OpenStateSelectiveMonitoring):
+class SimpleMonitoring(selective_monitoring.BebaSelectiveMonitoring):
     def __init__(self, *args, **kwargs):
         super(SimpleMonitoring, self).__init__(*args, **kwargs)
         self.datapaths = {}

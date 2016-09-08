@@ -8,13 +8,13 @@ import ryu.ofproto.ofproto_v1_3_parser as ofparser
 import ryu.ofproto.beba_v1_0 as bebaproto
 import ryu.ofproto.beba_v1_0_parser as bebaparser
 
-LOG = logging.getLogger('app.openstate.selective_monitoring')
+LOG = logging.getLogger('app.beba.selective_monitoring')
 
 LOG.info("Feature monitored: ipv4_src")
 
-class OpenStateSelectiveMonitoring(app_manager.RyuApp):
+class BebaSelectiveMonitoring(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
-        super(OpenStateSelectiveMonitoring, self).__init__(*args, **kwargs)
+        super(BebaSelectiveMonitoring, self).__init__(*args, **kwargs)
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, event):

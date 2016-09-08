@@ -21,7 +21,7 @@ precision = 3  # 1 -> small precision 68% / 2 -> medium precision 95% / 3 -> hig
 
 class SimpleMonitoring_1(selective_monitoring_1.BebaSelectiveMonitoring_1):
     def __init__(self, *args, **kwargs):
-        super(SimpleMonitoring, self).__init__(*args, **kwargs)
+        super(SimpleMonitoring_1, self).__init__(*args, **kwargs)
         self.monitor_thread = hub.spawn(self._monitor)
         self.entropy_ipsrc, self.entropy_ipdst, self.entropy_portsrc, self.entropy_portdst, self.abscisse_time = ([] for i in range(5)) # Entropy Lists
         self.datapaths, self.ipsrc, self.ipdst, self.portsrc, self.portdst, self.tcp_portsrc, self.tcp_portdst, self.udp_portsrc, self.udp_portdst = ({} for i in range(9)) # Datapath + Features dictionaries
@@ -426,7 +426,7 @@ class SimpleMonitoring_1(selective_monitoring_1.BebaSelectiveMonitoring_1):
                 self.portdst[index] = self.udp_portdst[index]
 
         # Printing the counters:
-        # self.printcounters()
+        self.printcounters()
 
         # Entropy calculation:
         entropy_ip_src = self.entropy(self.ipsrc)
@@ -444,15 +444,15 @@ class SimpleMonitoring_1(selective_monitoring_1.BebaSelectiveMonitoring_1):
         self.storeInFile()
 
         # Printing the entropies:
-        LOG.info('===========================================')
+        # LOG.info('===========================================')
         # LOG.info('Entropy IP Src')
         # LOG.info(self.entropy_ipsrc)
-        LOG.info('Entropy IP Dst')
-        LOG.info(self.entropy_ipdst)
+        # LOG.info('Entropy IP Dst')
+        # LOG.info(self.entropy_ipdst)
         # LOG.info('Entropy Port Src')
         # LOG.info(self.entropy_portsrc)
-        LOG.info('Entropy Port Dst')
-        LOG.info(self.entropy_portdst)
+        # LOG.info('Entropy Port Dst')
+        # LOG.info(self.entropy_portdst)
 
         # Detection process
         if ((len(self.entropy_ipsrc) > int(20 / timewindow)) and sum(
