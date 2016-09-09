@@ -285,7 +285,7 @@ class BebaErrorExperimenterMsg(app_manager.RyuApp):
         self.send_table_mod(datapath)
         self.send_key_lookup(datapath)
         self.send_key_update(datapath)
-        act_type=2
+        act_type=10
         data=struct.pack('!I4xB',act_type,0)
         a = ofparser.OFPActionExperimenterUnknown(experimenter=0XBEBABEBA, data=data)
         actions = [a]
