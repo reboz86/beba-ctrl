@@ -156,18 +156,13 @@ def OFPExpStateStatsMultipartRequest(datapath, table_id=ofproto.OFPTT_ALL, state
     exp_type=bebaproto.OFPMP_EXP_STATE_STATS
     return ofproto_parser.OFPExperimenterStatsRequest(datapath=datapath, flags=flags, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
 
-def OFPExpStateStatsMultipartRequestAndDelete(datapath, table_id=ofproto.OFPTT_ALL, state=None, match=None):
+def OFPExpStateStatsMultipartRequestAndDelete(datapath, table_id=ofproto.OFPTT_ALL):
     flags = 0 # Zero or ``OFPMPF_REQ_MORE``
-    get_from_state = 1
-    if state is None:
-        get_from_state = 0
-        state = 0
-        
-    if match is None:
-        match = ofproto_parser.OFPMatch()
+    
+    match = ofproto_parser.OFPMatch()
 
     data=bytearray()
-    msg_pack_into(bebaproto.OFP_STATE_STATS_REQUEST_0_PACK_STR, data, 0, table_id, get_from_state, state)
+    msg_pack_into(bebaproto.OFP_STATE_STATS_REQUEST_0_PACK_STR, data, 0, table_id, 0, 0)
     
     offset=bebaproto.OFP_STATE_STATS_REQUEST_0_SIZE
     match.serialize(data, offset)
