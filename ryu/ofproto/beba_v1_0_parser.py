@@ -45,6 +45,21 @@ def OFPExpActionSetGlobalState(global_state, global_state_mask=0xffffffff):
     data=struct.pack(bebaproto.OFP_EXP_ACTION_SET_GLOBAL_STATE_PACK_STR, act_type, global_state, global_state_mask)
     return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0XBEBABEBA, data=data)
 
+def OFPExpActionIncState(table_id):
+    """ 
+    Returns a Set Inc state experimenter action
+
+    This action increment the current state.
+    ================ ======================================================
+    Attribute        Description
+    ================ ======================================================
+    table_id         Stage ID
+    ================ ======================================================
+    """
+    act_type=bebaproto.OFPAT_EXP_INC_STATE
+    data=struct.pack(bebaproto.OFP_EXP_ACTION_INC_STATE_PACK_STR, act_type, table_id)
+    return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0xBEBABEBA, data=data)
+
 def OFPExpMsgConfigureStatefulTable(datapath, stateful, table_id):
     command=bebaproto.OFPSC_EXP_STATEFUL_TABLE_CONFIG
     data=struct.pack(bebaproto.OFP_EXP_STATE_MOD_PACK_STR, command)
@@ -139,6 +154,25 @@ def OFPExpStateStatsMultipartRequest(datapath, table_id=ofproto.OFPTT_ALL, state
     match.serialize(data, offset)
 
     exp_type=bebaproto.OFPMP_EXP_STATE_STATS
+    return ofproto_parser.OFPExperimenterStatsRequest(datapath=datapath, flags=flags, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
+
+def OFPExpStateStatsMultipartRequestAndDelete(datapath, table_id=ofproto.OFPTT_ALL, state=None, match=None):
+    flags = 0 # Zero or ``OFPMPF_REQ_MORE``
+    get_from_state = 1
+    if state is None:
+        get_from_state = 0
+        state = 0
+        
+    if match is None:
+        match = ofproto_parser.OFPMatch()
+
+    data=bytearray()
+    msg_pack_into(bebaproto.OFP_STATE_STATS_REQUEST_0_PACK_STR, data, 0, table_id, get_from_state, state)
+    
+    offset=bebaproto.OFP_STATE_STATS_REQUEST_0_SIZE
+    match.serialize(data, offset)
+
+    exp_type=bebaproto.OFPMP_EXP_STATE_STATS_AND_DELETE
     return ofproto_parser.OFPExperimenterStatsRequest(datapath=datapath, flags=flags, experimenter=0xBEBABEBA, exp_type=exp_type, data=data)
 
 """ 
@@ -890,6 +924,8 @@ class OVSDatapath(Datapath):
                 ''' TODO: In Open vSwitch the state table is a simple flow table => we could send a OFPMultipartRequest, maybe '''
             elif msg.exp_type==bebaproto.OFPMP_EXP_GLOBAL_STATE_STATS:
                 ''' TODO: in Open vSwitch, global states are a flow entry in the first table => we could send a OFPMultipartRequest, maybe '''
+            elif msg.exp_type==bebaproto.OFPMP_EXP_STATE_STATS_AND_DELETE:
+                ''' TODO '''
             return
         elif isinstance(msg,ofproto_parser.OFPFlowMod):
             # [step 1 ] check for the presence of any Beba action in OFPInstructionActions
