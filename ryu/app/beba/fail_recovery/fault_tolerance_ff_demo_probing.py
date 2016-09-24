@@ -10,7 +10,7 @@ from ryu.lib.packet import packet
 from ryu.topology import event
 import logging
 from sets import Set
-import time
+import time,os
 import f_t_parser_ff as f_t_parser
 LOG = logging.getLogger('app.beba.fault_tolerance_ff')
 
@@ -183,44 +183,15 @@ class BebaFaultTolerance(app_manager.RyuApp):
         if(node1 > node2):
             node1,node2 = node2,node1
 
-        hw_addr1 = self.ports_mac_dict[self.dp_dictionary[node1].id][f_t_parser.mn_topo_ports['s'+str(node1)]['s'+str(node2)]]
-        hw_addr2 = self.ports_mac_dict[self.dp_dictionary[node2].id][f_t_parser.mn_topo_ports['s'+str(node2)]['s'+str(node1)]]
-        config = 1
-        mask = (ofproto.OFPPC_PORT_DOWN)
-        advertise = (ofproto.OFPPF_10MB_HD | ofproto.OFPPF_100MB_FD |
-                     ofproto.OFPPF_1GB_FD | ofproto.OFPPF_COPPER |
-                     ofproto.OFPPF_AUTONEG | ofproto.OFPPF_PAUSE |
-                     ofproto.OFPPF_PAUSE_ASYM)
-        req1 = ofparser.OFPPortMod(self.dp_dictionary[node1], f_t_parser.mn_topo_ports['s'+str(node1)]['s'+str(node2)], hw_addr1, config,
-                                    mask, advertise)
-        self.dp_dictionary[node1].send_msg(req1)
-        req2 = ofparser.OFPPortMod(self.dp_dictionary[node2], f_t_parser.mn_topo_ports['s'+str(node2)]['s'+str(node1)], hw_addr2, config,
-                                    mask, advertise)
-        self.dp_dictionary[node2].send_msg(req2)
+        os.system('sudo ifconfig s'+str(node1)+'-eth'+str(f_t_parser.mn_topo_ports['s'+str(node1)]['s'+str(node2)])+' down')
+        os.system('sudo ifconfig s'+str(node2)+'-eth'+str(f_t_parser.mn_topo_ports['s'+str(node2)]['s'+str(node1)])+' down')
 
     def set_link_up(self,node1,node2):
         if(node1 > node2):
             node1,node2 = node2,node1
 
-        hw_addr1 = self.ports_mac_dict[self.dp_dictionary[node1].id][f_t_parser.mn_topo_ports['s'+str(node1)]['s'+str(node2)]]
-        hw_addr2 = self.ports_mac_dict[self.dp_dictionary[node2].id][f_t_parser.mn_topo_ports['s'+str(node2)]['s'+str(node1)]]
-        config = 0
-        mask = (ofproto.OFPPC_PORT_DOWN)
-        advertise = (ofproto.OFPPF_10MB_HD | ofproto.OFPPF_100MB_FD |
-                     ofproto.OFPPF_1GB_FD | ofproto.OFPPF_COPPER |
-                     ofproto.OFPPF_AUTONEG | ofproto.OFPPF_PAUSE |
-                     ofproto.OFPPF_PAUSE_ASYM)
-        req1 = ofparser.OFPPortMod(self.dp_dictionary[node1], f_t_parser.mn_topo_ports['s'+str(node1)]['s'+str(node2)], hw_addr1, config,
-                                    mask, advertise)
-        self.dp_dictionary[node1].send_msg(req1)
-        req2 = ofparser.OFPPortMod(self.dp_dictionary[node2], f_t_parser.mn_topo_ports['s'+str(node2)]['s'+str(node1)], hw_addr2, config,
-                                    mask, advertise)
-        self.dp_dictionary[node2].send_msg(req2)
-
-        # STATE update in Redirect only nodes of all requests involved in fault
-        '''for req in f_t_parser.faults[(node1,node2)]['requests']:
-            redirect_node = f_t_parser.faults[(node1,node2)]['requests'][req]['redirect_node']
-            self.add_state_entry(self.dp_dictionary[redirect_node],req[0],req[1])'''
+        os.system('sudo ifconfig s'+str(node1)+'-eth'+str(f_t_parser.mn_topo_ports['s'+str(node1)]['s'+str(node2)])+' up')
+        os.system('sudo ifconfig s'+str(node2)+'-eth'+str(f_t_parser.mn_topo_ports['s'+str(node2)]['s'+str(node1)])+' up')
 
     def add_state_entry(self, datapath, mac_src, mac_dst):
         state = bebaparser.OFPExpMsgSetFlowState(
