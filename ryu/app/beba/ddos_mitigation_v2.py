@@ -500,8 +500,8 @@ class FSM_T0_Mtg:
         self.process_packet(datapath,
             self.OPEN, F_DONT_CARE,
             [1,2],
-            self.OPEN, 0, 0, # TODO - adjust timeouts
-            self.OPEN, 0, 0, # TODO - adjust timeouts
+            self.OPEN, 300, 0, # TODO - adjust timeouts
+            self.OPEN, 300, 0, # TODO - adjust timeouts
             100,
             self.DO_NOT_COUNT_PKT)
 
@@ -574,9 +574,9 @@ class OSDdosMitigation(app_manager.RyuApp):
     # Declaration of control constants ###############
     ##################################################
     # Number of seconds to sleep
-    MONITORING_SLEEP_TIME = 5
-    DDOS_ACTIVE_TRESHOLD = 200
-    DDOS_INACTIVE_TRESHOLD = 100
+    MONITORING_SLEEP_TIME = 10
+    DDOS_ACTIVE_TRESHOLD = 1500
+    DDOS_INACTIVE_TRESHOLD = 1400
 
     ##################################################
     # Implementation of methods        ###############
@@ -820,8 +820,9 @@ class OSDdosMitigation(app_manager.RyuApp):
         # and inserted to the list
 	#pdb.set_trace() 
 	if len(ev.msg.body) == 0:
-            return 
-   
+            return
+       
+        #print(len(ev.msg.body))
         unknown_syn = int(ev.msg.body[0].packet_count)
         ##known_syn = int(ev.msg.body[1].packet_count)
         new_flows = unknown_syn - self.old_unknown_syn
