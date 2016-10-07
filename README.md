@@ -12,24 +12,20 @@ To install the BEBA Controller on your machine:
       cd beba-ctrl
       python ./setup.py install
 
-Once installed, the BEBA Controller can be executed using the `ryu-manager` command. Please refer to the [original RYU's documentation][ryu-readme] on how to use this controller.
+Once installed, the BEBA Controller can be executed using the `ryu-manager` command. Please refer to the [original RYU documentation][ryu] on how to use this controller.
 
 ## BEBA Extensions & App Samples
 
-Most of the BEBA extensions (implemented as *OpenFlow Experimenter Extensions*) are implemented in [beba_v1_0_parser.py](ryu/ofproto/beba_v1_0_parser.py).
-Most of the BEBA extensions (implemented as *OpenFlow Experimenter Extensions*) are implemented in [beba_v1_0_parser.py](ryu/ofproto/beba_v1_0_parser.py).
+Most of the BEBA extensions (implemented as *OpenFlow Experimenter Extensions*) are implemented in [ryu/ofproto/beba_v1_0_parser.py](ryu/ofproto/beba_v1_0_parser.py).
 
-BEBA app samples can be found inside `beba-ctrl/ryu/app/beba`
+BEBA app samples can be found inside [ryu/app/beba](ryu/app/beba)
 
 # Contribute
 Please submit your bug reports, fixes and suggestions as pull requests on
 GitHub, or by contacting us directly.
 
 # License
-BEBA Software Switch is released under the Apache 2.0 License.
+BEBA Controller is released under the Apache 2.0 License.
 
 [beba]: http://www.beba-project.eu/
-[openstate]: http://openstate-sdn.org/pub/openstate-ccr.pdf
-[insp]: http://conferences.sigcomm.org/sosr/2016/papers/sosr_paper42.pdf
 [ryu]: http://osrg.github.io/ryu
-[ryu-readme]: https://github.com/osrg/ryu/blob/master/README.rst
