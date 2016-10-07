@@ -19,6 +19,9 @@ from ryu.lib.packet import ethernet,packet,ipv4,tcp
 # IP address helping library
 import ipaddr, hashlib, threading
 
+# Time stamps for output messages
+import time
+
 
 LOG = logging.getLogger('app.openstate.ddosmitigation')
 ################################################################################
@@ -829,10 +832,13 @@ class OSDdosMitigation(app_manager.RyuApp):
         self.old_unknown_syn = unknown_syn
         # Setup new flow set and start the DDoS detection ...
         self.detect_ddos(new_flows)            
+        # Create new request to read new flow count number
+        self.learn_new_flows_event.set()
 
     def detect_ddos(self,new_flows):
         # Here, traverse through the list of all flows and compute the number of new flows
-        LOG.info("New flow count is %d" % (new_flows))
+        LOG.info("%d %s New flow count is %d" % (time.mktime(time.localtime()),
+            time.strftime("%d.%m. %H:%M:%S"), new_flows))
         
         if self._ddos_detected(new_flows) and self.mitig_on == False:
         ## Load FSM (table0) for DDoS mitigation mode of operation
