@@ -592,6 +592,7 @@ class OSDdosMitigation(app_manager.RyuApp):
         # Setup default values of helping flags
         self.mitig_on = False
         self.old_unknown_syn = 0
+        self.learn_new_flows_event = threading.Event()
 
     def remove_table_flows(self, datapath, table_id, match, instructions):
         """
@@ -782,7 +783,12 @@ class OSDdosMitigation(app_manager.RyuApp):
         while True:
             # Send request and wait for X seconds
             self.datapath.send_msg(req)
+            # Wait for a signal that the message was processed.
+            # For safety reason, set a timeout (in case something goes wrong with the other thread
+            self.learn_new_flows_event.wait(timeout = 100 * self.MONITORING_SLEEP_TIME)
+            # Wait for MONITORING_SLEEP_TIME before sending a new request
             hub.sleep(self.MONITORING_SLEEP_TIME) 
+            self.learn_new_flows_event.clear()
         
     def _ddos_detected(self,flow_cnt):
         """
