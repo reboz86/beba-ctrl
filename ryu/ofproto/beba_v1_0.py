@@ -42,7 +42,7 @@ assert (calcsize(OFP_EXP_STATE_MOD_SET_GLOBAL_STATE_PACK_STR)) == OFP_EXP_STATE_
 
 # struct ofp_exp_action_set_state
 OFP_EXP_ACTION_SET_STATE_PACK_STR = '!I4xIIB3xIIIIB3xI'
-OFP_EXP_ACTION_SET_STATE_SIZE = 40
+OFP_EXP_ACTION_SET_STATE_SIZE = 44
 assert calcsize(OFP_EXP_ACTION_SET_STATE_PACK_STR) == OFP_EXP_ACTION_SET_STATE_SIZE
 
 # struct ofp_exp_action_set_global_state

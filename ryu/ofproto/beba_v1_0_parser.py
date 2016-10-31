@@ -11,7 +11,6 @@ import six
 LOG = logging.getLogger('ryu.ofproto.beba_v1_0_parser')
 
 def OFPExpActionSetState(state, table_id, bit=0, hard_timeout=0, idle_timeout=0, hard_rollback=0, idle_rollback=0, state_mask=0xffffffff, fields=[]):
-def OFPExpActionSetState(state, table_id, bit=0, hard_timeout=0, idle_timeout=0, hard_rollback=0, idle_rollback=0, state_mask=0xffffffff, fields=[]):
     """ 
     Returns a Set state experimenter action
 
