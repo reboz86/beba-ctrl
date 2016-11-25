@@ -91,17 +91,14 @@ class OSMacLearning(app_manager.RyuApp):
 		
 		if (msg.body.experimenter == 0xBEBABEBA):
 			if(msg.body.exp_type == bebaproto.OFPMP_EXP_STATE_STATS):
-				data = msg.body.data
-				t = bebaparser.OFPStateStats.parser(data, 0)
-				if(t==[]):
+				state_entry_list = bebaparser.OFPStateStats.parser(msg.body.data)
+				if (state_entry_list==[]):
 					print "No key for this state"
 				else:
-					for index in range(len(t)):
-						i = index
-						k = map(lambda x:hex(x),t[i].entry.key)
-						print("State: " + str(t[index].entry.state))
-						print("  Key: " + str(k))
-						print('***************')
+					for state_entry in state_entry_list:
+						print 'State :',state_entry.entry.state
+						print 'Key   :',bebaparser.state_entry_key_to_str(state_entry)
+						print '*********'
 
 import time
 from threading import Thread

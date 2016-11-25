@@ -93,16 +93,12 @@ class OSMacLearning(app_manager.RyuApp):
 		
 		# State Sync: Parse the response from the switch
 		if (msg.body.experimenter == 0xBEBABEBA):
-			if(msg.body.exp_type == bebaproto.OFPMP_EXP_STATE_STATS):
-				data = msg.body.data
-				t = bebaparser.OFPStateStats.parser(data,0)
-				if (t!=[]):
-					for index in range(len(t)):
-						k = map(lambda x:hex(x),t[index].entry.key)
-						print("State : " + str(t[index].entry.state))
-						print("Key   : " + str(k))
-						print("*********")
-			
+			if (msg.body.exp_type == bebaproto.OFPMP_EXP_STATE_STATS):
+				state_entry_list = bebaparser.OFPStateStats.parser(msg.body.data)
+				for state_entry in state_entry_list:
+					print 'State :',state_entry.entry.state
+					print 'Key   :',bebaparser.state_entry_key_to_str(state_entry)
+					print '*********'
 				
 import time
 from threading import Thread
