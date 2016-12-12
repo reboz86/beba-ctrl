@@ -1,5 +1,5 @@
 """
-Custom BEBA node
+Custom BEBA node and host
 
 This script enables/disables switch max verbosity and debugging with Valgrind via Mininet CLI parameters.
 (NB Mininet's verbosity is not affected and can be configured via --verbosity/-v parameter)
@@ -9,9 +9,29 @@ sudo mn --topo single,4 --controller remote --mac --arp --custom beba.py --switc
 
 The following command starts Mininet with Valgrind and maximum verbosity level
 sudo mn --topo single,4 --controller remote --mac --arp --custom beba.py --switch beba_dbg
+
+By adding the '--host=beba' option, it is possible to disable the Checksum Offloading for all the hosts
+to solve some issues in ofsoftswitch13 checksum correctness.
 """
 
-from mininet.node import UserSwitch
+from mininet.node import UserSwitch, Host
+
+class BebaHost(Host):
+    def config(self, **params):
+        r = super(Host, self).config(**params)
+
+        self.defaultIntf().rename("eth0")
+
+        for off in ["rx", "tx", "sg"]:
+            cmd = "/sbin/ethtool --offload eth0 %s off" % off
+            self.cmd(cmd)
+
+        # disable IPv6
+        self.cmd("sysctl -w net.ipv6.conf.all.disable_ipv6=1")
+        self.cmd("sysctl -w net.ipv6.conf.default.disable_ipv6=1")
+        self.cmd("sysctl -w net.ipv6.conf.lo.disable_ipv6=1")
+
+        return r
 
 class BebaSwitchDbg( UserSwitch ):
     def start( self, controllers ):
@@ -42,3 +62,5 @@ class BebaSwitchDbg( UserSwitch ):
                     self.TCReapply( intf )
 
 switches = {'beba':UserSwitch , 'beba_dbg':BebaSwitchDbg}
+
+hosts = {'beba':BebaHost}
