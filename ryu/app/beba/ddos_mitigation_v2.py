@@ -713,20 +713,20 @@ class OSDdosMitigation(app_manager.RyuApp):
         # use dst IP + dst Port???
         req = osparser.OFPExpMsgKeyExtract(datapath = self.datapath,
                 command = osp.OFPSC_EXP_SET_L_EXTRACTOR,
-                fields = [ofp.OXM_OF_IPV4_DST,ofp.OXM_OF_TCP_DST],
+                fields = [ofp.OXM_OF_IPV4_SRC, ofp.OXM_OF_IPV4_DST, ofp.OXM_OF_TCP_SRC, ofp.OXM_OF_TCP_DST],
                 table_id = 1)
         self.datapath.send_msg(req)
 
         # Set update extractor = {ip_dst,tcp_dst}
         req = osparser.OFPExpMsgKeyExtract(datapath = self.datapath,
                 command = osp.OFPSC_EXP_SET_U_EXTRACTOR,
-                fields = [ofp.OXM_OF_IPV4_DST,ofp.OXM_OF_TCP_DST],
+                fields = [ofp.OXM_OF_IPV4_SRC, ofp.OXM_OF_IPV4_DST, ofp.OXM_OF_TCP_SRC, ofp.OXM_OF_TCP_DST],
                 table_id = 1)
         self.datapath.send_msg(req)
         
         req = osparser.OFPExpMsgKeyExtract(datapath = self.datapath,
                 command = osp.OFPSC_EXP_SET_U_EXTRACTOR,
-                fields = [ofp.OXM_OF_IPV4_DST,ofp.OXM_OF_TCP_DST],
+                fields = [ofp.OXM_OF_IPV4_SRC, ofp.OXM_OF_IPV4_DST, ofp.OXM_OF_TCP_SRC, ofp.OXM_OF_TCP_DST],
                 table_id = 1,
                 bit = 1)
         self.datapath.send_msg(req)
