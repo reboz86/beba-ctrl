@@ -7,6 +7,7 @@ import ryu.ofproto.beba_v1_0 as bebaproto
 from ryu import utils
 import logging
 import six
+from array import array
 
 LOG = logging.getLogger('ryu.ofproto.beba_v1_0_parser')
 
@@ -342,7 +343,7 @@ class OFPStateStats(StringifyMixin):
         self.hard_rb = hard_rb
         
     @classmethod
-    def parser(cls, buf, offset):
+    def parser(cls, buf, offset=0):
         state_stats_list = []
         
         for i in range(len(buf)/bebaproto.OFP_STATE_STATS_SIZE):
@@ -431,20 +432,17 @@ def get_field_string(field,key,key_count,offset):
     elif field==ofproto.OXM_OF_TCP_DST:
         if key_count!=0:
             length = 2
-            print(key)
             value = struct.unpack('<H', array('B',key[offset:offset+length]))[0]
             return ("tcp_dst=\"%d\""%(value),length)
         else:
             return ("tcp_dst=*",0)
-    elif field==ofproto.OXM_OF_TC_FLAGS:
+    elif field==ofproto.OXM_OF_TCP_FLAGS:
         if key_count!=0:
             length = 2
-            print(key)
             value = struct.unpack('<H', array('B',key[offset:offset+length]))[0]
             return ("tcp_flags=\"%d\""%(value),length)
         else:
             return ("tcp_flags=*",0)
-
     elif field==ofproto.OXM_OF_UDP_SRC:
         if key_count!=0:
             length = 2
@@ -669,14 +667,14 @@ def get_field_string(field,key,key_count,offset):
         else:
             return ("ext_hdr=*",0)
 
-def state_entry_key_to_str(extr,key,key_count):
-    offset=0
-    s=''
-    for field in extr:
-        (string,field_len) = get_field_string(field,key,key_count,offset)
+def state_entry_key_to_str(state_stats):
+    offset = 0
+    s = ''
+    for field in state_stats.fields[:state_stats.field_count]:
+        (string,field_len) = get_field_string(field,state_stats.entry.key,state_stats.entry.key_count,offset)
         s += string
         offset += field_len
-        if field!=extr[-1]:
+        if field != state_stats.fields[state_stats.field_count-1]:
             s += ","
     return s
 
