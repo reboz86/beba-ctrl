@@ -599,13 +599,13 @@ class OFPInstructionInSwitchPktGen(ofproto_parser.OFPInstruction):
                       self.instr_type, self.pkttmp_id)
 
 class OFPStateEntry(object):
-    def __init__(self, key_count=None, key=None, state=None):
+    def __init__(self, key_count=None, key=None, state=None, flow_data_var=None):
         super(OFPStateEntry, self).__init__()
         
         self.key_count=key_count
         self.key = key
         self.state = state
-        # TODO Davide: handle flow_data_var
+        self.flow_data_var = flow_data_var
     
     @classmethod
     def parser(cls, buf, offset):
@@ -625,6 +625,12 @@ class OFPStateEntry(object):
         state = struct.unpack_from('!I', buf, offset)
         entry.state=state[0]
         offset += 4
+
+        entry.flow_data_var = []
+        for f in range(bebaproto.MAX_FLOW_DATA_VAR_NUM):
+            flow_data = struct.unpack_from('!I', buf, offset,)
+            entry.flow_data_var.append(flow_data[0])
+            offset += 4
 
         return entry
 
