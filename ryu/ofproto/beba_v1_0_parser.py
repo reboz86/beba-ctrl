@@ -80,7 +80,7 @@ def OFPExpActionIncState(table_id):
 
     return ofproto_parser.OFPActionExperimenterUnknown(experimenter=0xBEBABEBA, data=data)
 
-def OFPExpActionSetDataVariable(table_id, opcode, output_gd_id=None, output_fd_id=None, operand_1_fd_id=None, operand_1_gd_id=None, operand_1_hf_id=None, operand_2_fd_id=None, operand_2_gd_id=None, operand_2_hf_id=None, operand_2_cost=None, operand_3_fd_id=None, operand_3_gd_id=None, operand_3_hf_id=None,operand_4_fd_id=None, operand_4_gd_id=None, operand_4_hf_id=None, coeff_1=0, coeff_2=0, coeff_3=0, coeff_4=0, fields=[]):
+def OFPExpActionSetDataVariable(table_id, opcode, bit=0, output_gd_id=None, output_fd_id=None, operand_1_fd_id=None, operand_1_gd_id=None, operand_1_hf_id=None, operand_2_fd_id=None, operand_2_gd_id=None, operand_2_hf_id=None, operand_2_cost=None, operand_3_fd_id=None, operand_3_gd_id=None, operand_3_hf_id=None,operand_4_fd_id=None, operand_4_gd_id=None, operand_4_hf_id=None, coeff_1=0, coeff_2=0, coeff_3=0, coeff_4=0, fields=[]):
     """ 
     Returns a Set Data Variable experimenter action
 
@@ -95,6 +95,8 @@ def OFPExpActionSetDataVariable(table_id, opcode, output_gd_id=None, output_fd_i
     operand_2_XX_id  ID of second global/data variable/header field/constant
     operand_3_XX_id  ID of third global/data variable/header field
     operand_4_XX_id  ID of fourth global/data variable/header field
+    bit              Enable/Disable swapping of the source/destination addresses a
+                     and source/destination ports in the case of bi-flow identificatin
     ================ ======================================================
     """
     field_count=len(fields)
@@ -213,7 +215,7 @@ def OFPExpActionSetDataVariable(table_id, opcode, output_gd_id=None, output_fd_i
         operand_types=operand_types | bebaproto.OPERAND_TYPE_GLOBAL_DATA_VAR<<7
         output=output_gd_id
     
-    data=struct.pack(bebaproto.OFP_EXP_ACTION_SET_DATA_VARIABLE_PACK_STR, act_type, operand_types, table_id, opcode, output, operand_1, operand_2, operand_3, operand_4, coeff_1, coeff_2, coeff_3, coeff_4, field_count)
+    data=struct.pack(bebaproto.OFP_EXP_ACTION_SET_DATA_VARIABLE_PACK_STR, act_type, operand_types, table_id, opcode, output, operand_1, operand_2, operand_3, operand_4, coeff_1, coeff_2, coeff_3, coeff_4, field_count, bit)
 
     field_extract_format='!I'
 
