@@ -521,6 +521,9 @@ class Table_Cntr:
 class MergedDdosMitigation(app_manager.RyuApp):
     DDOS_ACTIVE_TRESHOLD = 200
     DDOS_INACTIVE_TRESHOLD = 140
+    FIXED_TIMEOUT_TIME = 10 # 10 seconds of timeout duration
+
+    timeout_time = 0
 
     def __init__(self, *args, **kwargs):
         super(MergedDdosMitigation, self).__init__(*args, **kwargs)
@@ -1063,22 +1066,20 @@ class MergedDdosMitigation(app_manager.RyuApp):
 
         # Printing the entropies:
         LOG.info('===========================================')
-        LOG.info('Entropy IP Src')
-        # LOG.info(self.Entropy_IPsrc)
-        LOG.info('Entropy IP Dst switch %d', datapath.id)
-        LOG.info(self.Entropy_IPdst[datapath.id])
-        # LOG.info('Entropy Port Src')
-        # LOG.info(self.Entropy_Portsrc)
-        LOG.info('Entropy Port Dst switch %d', datapath.id)
-        LOG.info(self.Entropy_Portdst[datapath.id])
+        LOG.info("%d %s Entropy values for switch %d : %f %f %f %f"
+                 % (time.mktime(time.localtime()),
+                    time.strftime("%d.%m. %H:%M:%S"),
+                    datapath.id,
+                    entropy_ip_src, entropy_ip_dst,
+                    entropy_port_src, entropy_port_dst))
 
-
-        """ Detection process
-         Wait 20s before starting the detection,
+        """
+        Detection process
+        Wait 20s before starting the detection,
         we need at least 2 elements in entropy lists
         """
         if ((len(self.Entropy_IPsrc[datapath.id]) > 3)
-            and sum(self.Entropy_IPsrc[datapath.id]) > 1):
+        and sum(self.Entropy_IPsrc[datapath.id]) > 1):
             self.detection(datapath)
 
         # Emptying dictionaries
@@ -1118,36 +1119,48 @@ class MergedDdosMitigation(app_manager.RyuApp):
         # Traverse the list of all flows and compute the number of new flows
         LOG.info("%d %s New flow count is %d" % (time.mktime(time.localtime()),
                                 time.strftime("%d.%m. %H:%M:%S"), new_flows))
-
         """
-        A single detection suffices to trigger a global mitigation strategy.
-        On the other side, mitigation mode is lift only when ALL the switches
-        does not detect DDoS anymore """
+        A single detection is enough to trigger a global mitigation strategy.
+        On the other side, mitigation mode is lifted only when ALL the switches
+        does not detect DDoS anymore
+        """
         if self._ddos_detected(new_flows):
             self.syn_ddos_detected[datapath.id] = True
-            if not self.mitig_on:
-                ## Load FSM (table0) for DDoS mitigation mode of operation
-                for dp in self.datapaths.values():
-                    self.ddos_mtg_FSM.load_fsm(dp)
-                    self.load_arp_icmp(dp)
-                    LOG.info("Mitigation FSM has been"\
-                    " loaded to Table 6 of datapath %d", dp.id)
-                self.mitig_on = True
+            if self.is_mitigation_finished() :
+               self._syn_mitigation(self.datapaths.values())
+            # increase the detection timeout even if mitigation is still on
+            self.increase_detection_timeout(self.FIXED_TIMEOUT_TIME)
+            #IT MUST remain here !!
 
-        elif self._ddos_finished(new_flows):
+        elif self.mitig_on and self._ddos_finished(new_flows):
             self.syn_ddos_detected[datapath.id] = False
-           # LOG.info(self.syn_ddos_detected.values())
-           # LOG.info(self.mitig_on)
-           # LOG.info(not any(self.syn_ddos_detected.values()))
-            if self.mitig_on and not any(self.syn_ddos_detected.values()):
-                ## Load FSM (table0) for normal mode of operation
-                #self.clear_table(self.datapath,0)
-                for dp in self.datapaths.values():
-                    self.normal_FSM.load_fsm(dp)
-                    self.load_arp_icmp(dp)
-                    LOG.info("Normal FSM has been"\
+            """
+            Two constraints to return to normal mode:
+            all the switches have syn_ddos_detected = FALSE
+            and the mitigation timeout is finished
+            """
+            if (not any(self.syn_ddos_detected.values())
+            and self.is_mitigation_finished()):
+                self._syn_return_to_normal_mode(self.datapaths.values())
+
+    def _syn_mitigation(self, datapaths):
+        ## Load FSM (table0) for DDoS mitigation mode of operation
+        for dp in datapaths:
+            self.ddos_mtg_FSM.load_fsm(dp)
+            self.load_arp_icmp(dp)
+            LOG.info("Mitigation FSM has been"\
                     " loaded to Table 6 of datapath %d", dp.id)
-                self.mitig_on = False
+        self.mitig_on = True
+
+    def _syn_return_to_normal_mode(self, datapaths):
+        ## Load FSM (table6) for normal mode of operation
+        #self.clear_table(self.datapath,0)
+        for dp in datapaths:
+            self.normal_FSM.load_fsm(dp)
+            self.load_arp_icmp(dp)
+            LOG.info("Normal FSM has been"\
+                     " loaded to Table 6 of datapath %d", dp.id)
+        self.mitig_on = False
 
     def _ddos_detected(self,flow_cnt):
         """
@@ -1159,7 +1172,6 @@ class MergedDdosMitigation(app_manager.RyuApp):
         """
         if flow_cnt >= self.DDOS_ACTIVE_TRESHOLD:
             return True
-
         return False
 
     def _ddos_finished(self,flow_cnt):
@@ -1172,8 +1184,23 @@ class MergedDdosMitigation(app_manager.RyuApp):
         """
         if flow_cnt <= self.DDOS_INACTIVE_TRESHOLD:
             return True
-
         return False
+
+    def is_mitigation_finished(self):
+        LOG.info("Is mitigation finished ? %s",
+                 time.mktime(time.localtime()) > self.timeout_time)
+        return ( time.mktime(time.localtime()) > self.timeout_time)
+
+    def increase_detection_timeout(self, timeout):
+        """
+        This function sets the timeout state for detection.
+        It is used to synchronize the mitigation states among the different
+        strategies (SYN-ACK, entropy, etc..)
+        """
+        self.timeout_time = time.mktime(time.localtime()) + timeout
+        LOG.info("%d %s Detection timeout increased to %d"
+                 % (time.mktime(time.localtime()),
+                    time.strftime("%d.%m. %H:%M:%S"), self.timeout_time))
 
     def detection(self, datapath):
 
@@ -1235,6 +1262,7 @@ class MergedDdosMitigation(app_manager.RyuApp):
             elif (self.mean(self.Entropy_IPsrc[datapath.id][:-1])-Precision*(
                     variance_entropy_IPsrc**0.5) >
                   self.Entropy_IPsrc[datapath.id][-1]):
+
                 if(self.mean(self.Entropy_Portdst[datapath.id][:-1])+Precision*(
                         variance_entropy_Portdst**0.5) <
                    self.Entropy_Portdst[datapath.id][-1]):
@@ -1246,7 +1274,6 @@ class MergedDdosMitigation(app_manager.RyuApp):
                         +str(datetime.datetime.now().time())+' *******\033[0m')
                     mitigationtype = 1
                     attacktype = 2
-
                 else:
 
                     # DoS ICMP FLOODING Detection
@@ -1324,6 +1351,15 @@ class MergedDdosMitigation(app_manager.RyuApp):
             del self.Entropy_Portdst[datapath.id][-4]
 
         else:
+            """
+            There has been a detection, then increase the timeout for detection
+            triggering at the same time the SYN-flood mitigation strategy
+            """
+            if self.is_mitigation_finished() :
+                # This MUST stay in this order otherwise it doesn't work
+                self._syn_mitigation(self.datapaths.values())
+                self.increase_detection_timeout(self.FIXED_TIMEOUT_TIME)
+
             # Victims information:
             # IPs (always) & ports (if not portscan or ICMP)
             variance_IPdst = self.variance((self.IPdst).values())
@@ -1495,9 +1531,9 @@ class MergedDdosMitigation(app_manager.RyuApp):
         match = ofparser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP,
                                   ipv4_src=ipaddress,
                                   ip_proto=in_proto.IPPROTO_UDP)
-        #timeout set to 100 s
+        #timeout set to FIXED_TIMEOUT_TIME
         self.add_flow(datapath=datapath, table_id=0, priority=100, match=match,
-                      actions=actions, hard_timeout=100)
+                      actions=actions, hard_timeout=self.FIXED_TIMEOUT_TIME)
 
         LOG.info('\033[94m** Blackholing the attacker IP...'\
                     ' control message sent'\
@@ -1529,7 +1565,7 @@ class MergedDdosMitigation(app_manager.RyuApp):
 
         actions = []
         self.add_flow(datapath=datapath, table_id=0, priority=100, match=match,
-                      actions=actions, hard_timeout=100)
+                      actions=actions, hard_timeout=self.FIXED_TIMEOUT_TIME)
         LOG.info('\033[94m** Discarding all packets coming from the Attacker'\
                  ' IP, port tuple. Control message sent to switch %d **\033[0m',
                  datapath.id)
@@ -1569,7 +1605,8 @@ class MergedDdosMitigation(app_manager.RyuApp):
 
             actions = []
             self.add_flow(datapath=datapath, table_id=0, priority=100,
-                          match=match, actions=actions, hard_timeout=100)
+                          match=match, actions=actions,
+                          hard_timeout=self.FIXED_TIMEOUT_TIME)
 
         LOG.info('\033[94m** Mitigation of the receiver IP, port tuple,'\
                     ' all packets rerouted... control message sent'\
@@ -1612,7 +1649,8 @@ class MergedDdosMitigation(app_manager.RyuApp):
             actions = []
 
             self.add_flow(datapath=datapath, table_id=0, priority=100,
-                          match=match, actions=actions, hard_timeout=100)
+                          match=match, actions=actions,
+                          hard_timeout=self.FIXED_TIMEOUT_TIME)
             LOG.info('\033[94m** Mitigation (of the Victim) message sent'\
                     ' **\033[0m')
         elif (mitigationtype==2): # Mitigation of the Attacker's traffic
@@ -1650,7 +1688,8 @@ class MergedDdosMitigation(app_manager.RyuApp):
 
             actions = []
             self.add_flow(datapath=datapath, table_id=0, priority=100,
-                            match=match, actions=actions, hard_timeout=100)
+                          match=match, actions=actions,
+                          hard_timeout=self.FIXED_TIMEOUT_TIME)
             LOG.info('\033[94m** Mitigation (of the Attacker) message sent'\
                     ' **\033[0m')
 
