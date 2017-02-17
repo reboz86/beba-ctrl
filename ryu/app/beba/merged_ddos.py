@@ -18,6 +18,10 @@ import time
 import datetime
 
 LOG = logging.getLogger('app.beba.merged_ddos')
+LOG.setLevel(logging.DEBUG)
+fh = logging.FileHandler('logs.log')
+fh.setLevel(logging.DEBUG)
+LOG.addHandler(fh)
 
 MONITORING_SLEEP_TIME = 5
 # 1->small precision 68%; 2->medium precision 95%; 3->high precision 99,7%
@@ -37,7 +41,15 @@ F_SYN = 0x02
 F_SYN_ACK = 0x12
 F_ACK = 0x10
 
-class FSM_T6_Normal:
+"""
+Tables names for SYN-flood mitigation
+"""
+T_MATCH = 6
+T_COUNT = 7
+T_MAC_LEARNING = 8
+
+
+class FSM_T_MATCH_Normal:
     """
     Table 6 FSM for normal mode of operation
     FSM state definitions.
@@ -46,7 +58,8 @@ class FSM_T6_Normal:
     OPEN = 14 # TODO: Put all constanst to one class or package
     def load_fsm(self, dp):
 
-        LOG.info("Loading Table 6 normal FSM on datapath %d...", dp.id)
+        LOG.info("Loading Normal mode Table 6 (MATCH) on datapath %d.",
+                 dp.id)
         ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
         ## state INIT - ANY
         """
@@ -57,31 +70,32 @@ class FSM_T6_Normal:
                                   state = self.INIT)
 
         """
-        Forward the packet to the corresponding output interface and create
+        Forward the packet to table 7 and create
         entries for both directions of given flow in the OPEN state (forward
         all consecutive packets).
-        ( TODO - hard-coded output)
         """
         actions = [# Create entry for direction of incoming packet
             bebaparser.OFPExpActionSetState(state = self.OPEN,
-                                            table_id = 6, # TODO - TIMEOUTS
+                                            table_id = T_MATCH,
+                                            # TODO - TIMEOUTS
                                             idle_timeout = 10,
                                             bit = 0),
             # Create entry for opposite direction since response is expected
             bebaparser.OFPExpActionSetState(state = self.OPEN,
-                                            table_id = 6, # TODO - TIMEOUTS
+                                            table_id = T_MATCH,
+                                            # TODO - TIMEOUTS
                                             idle_timeout = 10,
                                             bit = 1)]
         """
         Apply forward actions and the creation of entries, pass the first packet
-        to the table 8 for the new TCP connections statistics computation.
+        to the table 7 for the new TCP connections statistics computation.
         """
         inst = [ofparser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
                                                actions),
-                ofparser.OFPInstructionGotoTable(table_id = 7)]
+                ofparser.OFPInstructionGotoTable(table_id = T_COUNT)]
 
         mod = ofparser.OFPFlowMod(datapath = dp,
-                                  table_id = 6,
+                                  table_id = T_MATCH,
                                   priority=100,
                                   match = match,
                                   instructions = inst)
@@ -97,32 +111,34 @@ class FSM_T6_Normal:
                                   ip_proto = 6,
                                   state = self.OPEN)
         """
-        Just output packet to the corresponding output interface.
-        ( TODO - hard-coded output)
+        Forward packet to table 8 for forwarding
         """
         actions = [bebaparser.OFPExpActionSetState(state = self.OPEN,
-                                                   table_id = 6,# TODO-TIMEOUTS
+                                                   table_id = T_MATCH,
+                                                   # TODO-TIMEOUTS
                                                    idle_timeout = 10,
                                                    bit = 0),
                    # Refresh timeouts only
                    bebaparser.OFPExpActionSetState(state = self.OPEN,
-                                                   table_id = 6, # TODO-TIMEOUTS
+                                                   table_id = T_MATCH,
+                                                   # TODO-TIMEOUTS
                                                    idle_timeout = 10,
                                                    bit = 1)]
 
         inst = [ofparser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
                                                actions),
-                ofparser.OFPInstructionGotoTable(table_id = 8)]
+                ofparser.OFPInstructionGotoTable(table_id = T_MAC_LEARNING)]
         mod = ofparser.OFPFlowMod(datapath = dp,
-                                  table_id = 6,
+                                  table_id = T_MATCH,
                                   priority = 100,
                                   match = match,
                                   instructions = inst)
         dp.send_msg(mod)
         LOG.info("Done.")
+
 ################################################################################
 
-class FSM_T6_Mtg:
+class FSM_T_MATCH_Mtg:
     """ Table 6 FSM for DDoS mitigation mode of operation."""
     """ FSM state definitions. """
     # Special value, used when state of given entry will not be set.
@@ -138,11 +154,8 @@ class FSM_T6_Mtg:
     SYN_R = 111
     SYN_ACK_R = 121
 
-    # Special value for dropping a packet.
-    NO_OUTPUT = []
-    # Values for packet counting determination..
-    COUNT_PKT = True
-    DO_NOT_COUNT_PKT = False
+    #Special value to drop packets
+    NO_OUTPUT = None
 
     """
     Template for packet handling rules.
@@ -151,27 +164,25 @@ class FSM_T6_Mtg:
     Set "flags" to "self.F_DONT_CARE" to skip packet's flags matching.
     ( TODO - add masks?)
     Actions could be set to:
-    - Output the packet to "output_ports" - list of output port
-    numbers. Set parameter "output_ports" to "self.NO_OUTPUT" for dropping the
-    packet.
+    - Transfer the packet to "next_table" - the next table in the pipeline
+    Set parameter "next_table" to "self.NO_OUTPUT" for dropping the
+    packet. For instance if we want to count a SYN packet of new TCP connections
+    we need to set  next_table value to T_COUNTING.
     - Set a state and timeouts for the source (actual direction) and the
     destination (opposite direction) entries. Set "ch_state_src" /
     "ch_state_dst" to "self.CH_STATE_NONE" for skipping given direction entry.
     Instructions consists of an application of actions and an optional passage
-    of the packet to the table1 for counting of first packets of new TCP
-    connections. Set "count_in" to "self.COUNT_PKT" to pass the packet for
-    counting, set to "self.DO_NOT_COUNT_PKT" otherwise.
+    of the packet to the table in next_tabl.
     Finally a modification message with the "priority" from the parameter is
     composed and sent to the "datapath".
     """
 
     def process_packet(self, datapath,
                        act_state, flags,
-                       output_ports,
+                       next_table,
                        ch_state_src, idle_to_src, hard_to_src,
                        ch_state_dst, idle_to_dst, hard_to_dst,
-                       priority,
-                       count_in):
+                       priority):
         """
         Match packet - ethernet, TCP protocol, state (parameter), optional
         flags (parameter).
@@ -187,48 +198,48 @@ class FSM_T6_Mtg:
                                       tcp_flags = flags)
         """
         Set actions:
-        - Output ports (parameter - list).
         - SetState for both directions (parameters).
         """
         actions = []
-        for port in output_ports:
-            actions.append(ofparser.OFPActionOutput(port))
 
         if ch_state_src != self.CH_STATE_NONE:
             actions.append(bebaparser.OFPExpActionSetState(state = ch_state_src,
-                                                    table_id = 6,#TODO-TIMEOUTS
+                                                    table_id = T_MATCH,
+                                                    #TODO-TIMEOUTS
                                                     idle_timeout = idle_to_src,
                                                     hard_timeout = hard_to_src,
                                                     bit = 0))
 
         if ch_state_dst != self.CH_STATE_NONE:
             actions.append(bebaparser.OFPExpActionSetState(state = ch_state_dst,
-                                                    table_id = 6,#TODO-TIMEOUTS
+                                                    table_id = T_MATCH,
+                                                    #TODO-TIMEOUTS
                                                     idle_timeout = idle_to_dst,
                                                     hard_timeout = hard_to_dst,
                                                     bit=1))
         """
         Set instructions:
         - Apply previously defined actions.
-        - Optionally pass packet to table1 for counting.
+        - Optionally pass packet to table 7 for counting.
         """
         inst = [ofparser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
                                                actions)]
-        if count_in:
-                inst.append(ofparser.OFPInstructionGotoTable(table_id=7))
+        if next_table != None:
+            inst.append(ofparser.OFPInstructionGotoTable(table_id = next_table))
         """
         Prepare and send message.
         """
-
         mod = ofparser.OFPFlowMod(datapath = datapath,
-                                  table_id = 6,
+                                  table_id = T_MATCH,
                                   priority = priority,
                                   match = match,
                                   instructions = inst)
         datapath.send_msg(mod)
+
+
     def load_fsm(self, dp):
-        LOG.info("Loading Table 6 DDoS detection and mitigation"\
-        " FSM for datapath %d...", dp.id)
+        LOG.info("Loading Mitigation mode Table 6 (Match) for datapath %d.",
+                 dp.id)
         ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
         ## state ERROR - ANY
         """
@@ -239,8 +250,7 @@ class FSM_T6_Mtg:
                             self.NO_OUTPUT,
                             self.CH_STATE_NONE, 0, 0, # TODO - adjust timeouts
                             self.CH_STATE_NONE, 0, 0, # TODO - adjust timeouts
-                            100,
-                            self.DO_NOT_COUNT_PKT)
+                            100)
         # TODO - count erroneous packets as they can be part of active DDoS?
 
         ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
@@ -249,16 +259,15 @@ class FSM_T6_Mtg:
         - Match first packet of new TCP flow - only SYN packet is allowed.
         - Drop first SYN packet (force a SYN packet retransmission).
         - Create an entry for the first SYN packet retransmission.
-        - Pass this first packet to the table 8 for a new TCP connections
-        statistics computation.
+        - Pass this first packet to the table T_COUNTING for a new TCP
+          connections statistics computation.
         """
         self.process_packet(dp,
                             self.INIT, F_SYN,
-                            self.NO_OUTPUT,
+                            T_COUNT,
                             self.SYN, 10, 0, # TODO - adjust timeouts
                             self.CH_STATE_NONE, 0, 0, # TODO - adjust timeouts
-                            100,
-                            self.COUNT_PKT)
+                            100)
 
         ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
         ## state INIT - BAD (not SYN)
@@ -273,18 +282,17 @@ class FSM_T6_Mtg:
         """
         self.process_packet(dp,
                             self.INIT, F_DONT_CARE,
-                            self.NO_OUTPUT,
+                            T_COUNT,
                             self.ERROR, 0, 10, # TODO - adjust timeouts
                             self.CH_STATE_NONE, 0, 0, # TODO - adjust timeouts
-                            90,
-                            self.COUNT_PKT)
+                            90)
 
         ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
         ## state SYN - OK (SYN - "forced" retransmission)
         """
         - Match a retransmitted SYN packet (which was intentionally dropped
           in the INIT state).
-        - Forward the packet to the corresponding output interface.
+        - Forward the packet to T_MAC_LEARNING table for forwarding.
         - Update an entry in source direction to the SYN_R state (for normal S
           retransmissions)
         - Create an entry for opposite direction in the SYN_ACK state (as th
@@ -293,11 +301,10 @@ class FSM_T6_Mtg:
         """
         self.process_packet(dp,
                             self.SYN, F_SYN,
-                            [2],
+                            T_MAC_LEARNING,
                             self.SYN_R, 10, 0, # TODO - adjust timeouts
                             self.SYN_ACK, 10, 0, # TODO - adjust timeouts
-                            100,
-                            self.DO_NOT_COUNT_PKT)
+                            100)
 
         ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
         ## state SYN - BAD (not SYN)
@@ -312,8 +319,7 @@ class FSM_T6_Mtg:
                             self.NO_OUTPUT,
                             self.ERROR, 0, 10, # TODO - adjust timeouts
                             self.CH_STATE_NONE, 0, 0, # TODO - adjust timeouts
-                            90,
-                            self.DO_NOT_COUNT_PKT)
+                            90)
 
         ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
         ## state SYN_R - OK (SYN - "normal" retransmission)
@@ -323,34 +329,30 @@ class FSM_T6_Mtg:
         - Keep entry in the SYN_R state (source direction).
         - TODO Keep entry in the SYN_ACK state (opposite direction).
         ( TODO - limit retransmissions)
-        ( TODO - hard-coded output)
-        """
+          """
         self.process_packet(dp,
                             self.SYN, F_SYN,
-                            [2],
+                            T_MAC_LEARNING,
                             self.SYN_R, 10, 0, # TODO - adjust timeouts
                             self.SYN_ACK, 10, 0, # TODO - adjust timeouts
-                            100,
-                            self.DO_NOT_COUNT_PKT)
+                            100)
 
         ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
         ## SYN_ACK - OK (SYN+ACK)
         """
         - Match a SYN+ACK packet (as a response to the SYN packet).
-        -Forward the packet to the corresponding output interface.
+        -Forward the packet to T_MAC__LEARNING table for forwarding.
         - Transfer a state to the SYN_ACK_R state for this direction (accept
         only SYN_ACK retransmissions).
         - Transfer a state to the ACK state for the opposite direction entry
         (a continuation of TCP handshake).
-        ( TODO - hard-coded output)
-        """
+         """
         self.process_packet(dp,
                             self.SYN_ACK, F_SYN_ACK,
-                            [1],
+                            T_MAC_LEARNING,
                             self.SYN_ACK_R, 10, 0, # TODO - adjust timeout
                             self.ACK, 10, 0, # TODO - adjust timeouts
-                            100,
-                            self.DO_NOT_COUNT_PKT)
+                            100)
 
         ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
         ## SYN_ACK - BAD (not SYN+ACK)
@@ -365,14 +367,13 @@ class FSM_T6_Mtg:
                             self.NO_OUTPUT,
                             self.ERROR, 0, 10, # TODO - adjust timeouts
                             self.ERROR, 0, 10, # TODO - adjust timeouts
-                            90,
-                            self.DO_NOT_COUNT_PKT)
+                            90)
 
         ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
         ## SYN_ACK_R - OK (SYN+ACK - "normal" retransmission)
         """
         - Match retransmitted SYN+ACK packet(s).
-        - Forward the packet to the corresponding output interface.
+        - Forward the packet to T_MAC__LEARNING table for forwarding.
         - Transfer a state to the SYN_ACK_R state for this direction (accept
           only SYN_ACK retransmissions.
         - Transfer a state to the ACK state for an opposite direction entry
@@ -382,12 +383,11 @@ class FSM_T6_Mtg:
         """
         self.process_packet(dp,
                             self.SYN_ACK_R, F_SYN_ACK,
-                            [1],
+                            T_MAC_LEARNING,
                             self.SYN_ACK_R, 10, 0, # TODO - adjust timeouts
                             # TODO - need to set this? refresh timeout?
                             self.ACK, 10, 0, # TODO - adjust timeouts
-                            100,
-                            self.DO_NOT_COUNT_PKT)
+                            90)
         ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
         ## SYN_ACK_R - BAD (not SYN_ACK)
         """
@@ -402,24 +402,21 @@ class FSM_T6_Mtg:
                             self.NO_OUTPUT,
                             self.ERROR, 0, 10, # TODO - adjust timeouts
                             self.ERROR, 0, 10, # TODO - adjust timeouts
-                            90,
-                            self.DO_NOT_COUNT_PKT)
+                            90)
 
         ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
         ## ACK - OK (ACK)
         """
         - Match an ACK packet (as a response to the SYN+ACK packet).
-        - Forward the packet to the corresponding output interface.
+        - Forward the packet to T_MAC_LEARNING table for forwarding.
         - Transfer states to the OPEN state for both directions.
-        ( TODO - hard-coded output)
         """
         self.process_packet(dp,
                             self.ACK, F_ACK,
-                            [2],
+                            T_MAC_LEARNING,
                             self.OPEN, 0, 0, # TODO - adjust timeouts
                             self.OPEN, 0, 0, # TODO - adjust timeouts
-                            100,
-                            self.DO_NOT_COUNT_PKT)
+                            100)
 
         ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
         ## ACK - BAD (not ACK)
@@ -434,24 +431,21 @@ class FSM_T6_Mtg:
                             self.NO_OUTPUT,
                             self.ERROR, 0, 10, # TODO - adjust timeouts
                             self.ERROR, 0, 10, # TODO - adjust timeouts
-                            90,
-                            self.DO_NOT_COUNT_PKT)
+                            90)
 
         ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
         ## OPEN - OK (ANY)
         """
         - Match any TCP packet.
-        - Forward the packet to the corresponding output interface.
+        - Forward the packet to T_MAC__LEARNING table for forwarding.
         - Keep entries for both directions in the OPEN state.
-        ( TODO - hard-coded output)
         """
         self.process_packet(dp,
                             self.OPEN, F_DONT_CARE,
-                            [1,2],
+                            T_MAC_LEARNING,
                             self.OPEN, 300, 0, # TODO - adjust timeouts
                             self.OPEN, 300, 0, # TODO - adjust timeouts
-                            100,
-                            self.DO_NOT_COUNT_PKT)
+                            100)
 
         LOG.info("Done.")
         """
@@ -460,9 +454,9 @@ class FSM_T6_Mtg:
         """
 
 ################################################################################
-class Table_Cntr:
+class FSM_T_COUNT_Normal:
     """
-    Table for counting of TCP connection with SYN flag.
+    Table for counting of TCP connection with SYN flag in normal operation mode.
     """
     # Define states. First one is for unknown states and the second one
     # for known states.
@@ -470,7 +464,8 @@ class Table_Cntr:
     KNOWN_SYN = 1
 
     def load_fsm(self, dp):
-        LOG.info("Loading Table 8 (SYN counter) for datapath %d...", dp.id)
+        LOG.info("Loading Normal mode Table 7 (SYN counter) for datapath %d.",
+                 dp.id)
         ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
         """
         Create two records for implementation of SYN counter.The first one
@@ -480,12 +475,13 @@ class Table_Cntr:
         """
         # Setup the record for matching of unknown SYN
         actions = [bebaparser.OFPExpActionSetState(state = self.KNOWN_SYN,
-                                                   table_id = 7,# TODO-TIMEOUTS
-                                                   idle_timeout = 1)]
+                                                   table_id = T_COUNT,
+                                                   # TODO-TIMEOUTS
+                                                   idle_timeout = 10)]
 
         inst = [ofparser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
                                                actions),
-                ofparser.OFPInstructionGotoTable(table_id=8)]
+                ofparser.OFPInstructionGotoTable(table_id = T_MAC_LEARNING)]
 
         match = ofparser.OFPMatch(eth_type = 0x0800,
                                   ip_proto = 6,
@@ -494,7 +490,7 @@ class Table_Cntr:
 
 
         mod = ofparser.OFPFlowMod(datapath = dp,
-                                  table_id = 7,
+                                  table_id = T_COUNT,
                                   priority = 1,
                                   match = match,
                                   instructions = inst)
@@ -503,7 +499,7 @@ class Table_Cntr:
         actions = []
         inst = [ofparser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
                                                actions),
-                ofparser.OFPInstructionGotoTable(table_id=8)]
+                ofparser.OFPInstructionGotoTable(table_id = T_MAC_LEARNING)]
 
         match = ofparser.OFPMatch(eth_type = 0x0800,
                                   ip_proto = 6,
@@ -511,7 +507,66 @@ class Table_Cntr:
                                   tcp_flags = F_SYN)
 
         mod = ofparser.OFPFlowMod(datapath = dp,
-                                  table_id = 7,
+                                  table_id = T_COUNT,
+                                  priority = 1,
+                                  match = match,
+                                  instructions = inst)
+        dp.send_msg(mod)
+################################################################################
+
+class FSM_T_COUNT_Mtg:
+    """
+    Table for counting of TCP connection with SYN flag whenever in mitigation
+    mode. In this case, new flows SYN packets are not forwarded (Dropped)
+    """
+    # Define states. First one is for unknown states and the second one
+    # for known states.
+    UNKNOWN_SYN = 0
+    KNOWN_SYN = 1
+
+    def load_fsm(self, dp):
+        LOG.info("Loading Mitigation mode Table 7 (SYN counter) for datapath"\
+                 "%d.", dp.id)
+        ##=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#=#
+        """
+        Create two records for implementation of SYN counter.The first one
+        is used for counting of unknown packets with SYN flag.
+        After that, we use the second record for counting of already known SYN
+        flows.
+        """
+        # Setup the record for matching of unknown SYN
+        actions = [bebaparser.OFPExpActionSetState(state = self.KNOWN_SYN,
+                                                   table_id = T_COUNT,
+                                                   # TODO-TIMEOUTS
+                                                   idle_timeout = 1)]
+
+        inst = [ofparser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
+                                               actions)]
+
+        match = ofparser.OFPMatch(eth_type = 0x0800,
+                                  ip_proto = 6,
+                                  state = self.UNKNOWN_SYN,
+                                  tcp_flags = F_SYN)
+
+
+        mod = ofparser.OFPFlowMod(datapath = dp,
+                                  table_id = T_COUNT,
+                                  priority = 1,
+                                  match = match,
+                                  instructions = inst)
+        dp.send_msg(mod)
+
+        actions = []
+        inst = [ofparser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
+                                               actions)]
+
+        match = ofparser.OFPMatch(eth_type = 0x0800,
+                                  ip_proto = 6,
+                                  state = self.KNOWN_SYN,
+                                  tcp_flags = F_SYN)
+
+        mod = ofparser.OFPFlowMod(datapath = dp,
+                                  table_id = T_COUNT,
                                   priority = 1,
                                   match = match,
                                   instructions = inst)
@@ -522,8 +577,6 @@ class MergedDdosMitigation(app_manager.RyuApp):
     DDOS_ACTIVE_TRESHOLD = 200
     DDOS_INACTIVE_TRESHOLD = 140
     FIXED_TIMEOUT_TIME = 10 # 10 seconds of timeout duration
-
-    timeout_time = 0
 
     def __init__(self, *args, **kwargs):
         super(MergedDdosMitigation, self).__init__(*args, **kwargs)
@@ -538,14 +591,23 @@ class MergedDdosMitigation(app_manager.RyuApp):
         self.datapaths, self.syn_ddos_detected,  self.IPsrc, self.IPdst,\
             self.Portsrc, self.Portdst, self.TCPPortsrc, self.TCPPortdst,\
             self.UDPPortsrc, self.UDPPortdst = ({} for i in range(10))
-        self.replies = {}
 
-        self.normal_FSM=FSM_T6_Normal()
-        self.ddos_mtg_FSM=FSM_T6_Mtg()
-        self.counter_engine=Table_Cntr()
+        self.replies, self.unknown_syn, self.old_unknown_syn, self.new_flows = \
+                                                        ({} for i in range(4))
+
+        self.match_normal_FSM = FSM_T_MATCH_Normal()
+        self.match_mtg_FSM = FSM_T_MATCH_Mtg()
+        self.counter_normal_FSM = FSM_T_COUNT_Normal()
+        self.counter_mtg_FSM = FSM_T_COUNT_Mtg()
+
         # Setup default values of helping flags
         self.mitig_on = False
-        self.old_unknown_syn = 0
+        self.timeout_time = 0
+
+        ## Create a monitoring thread (each X seconds start the collection)
+        self.monitor_thread = hub.spawn(self._monitor)
+        LOG.info("Starting DDoS detection ...")
+
         # External files to store calculated values
         with open('entropy.csv', 'wb') as csvfile:
             writer = csv.writer(csvfile,delimiter=',',
@@ -581,6 +643,9 @@ class MergedDdosMitigation(app_manager.RyuApp):
                 self.datapaths[datapath.id] = datapath
                 self.replies[datapath.id] = 0
                 self.syn_ddos_detected[datapath.id] = False
+                self.unknown_syn[datapath.id] = 0
+                self.new_flows[datapath.id] = 0
+                self.old_unknown_syn[datapath.id] = 0
 
                 self.Entropy_IPsrc[datapath.id],\
                     self.Entropy_IPdst[datapath.id],\
@@ -597,6 +662,10 @@ class MergedDdosMitigation(app_manager.RyuApp):
                 del self.datapaths[datapath.id]
                 del self.replies[datapath.id]
                 del self.syn_ddos_detected[datapath.id]
+                del self.unknown_syn[datapath.id]
+                del self.new_flows[datapath.id]
+                del self.old_unknown_syn[datapath.id]
+
                 del self.Entropy_IPsrc[datapath.id],\
                     self.Entropy_IPdst[datapath.id],\
                     self.Entropy_Portsrc[datapath.id],\
@@ -810,7 +879,7 @@ class MergedDdosMitigation(app_manager.RyuApp):
 
                 LOG.info("Done")
 
-            elif table ==8:
+            elif table == T_MAC_LEARNING:
                 ################################################################
                 #                        MAC LEARNING IMPLEMENTATION           #
                 ################################################################
@@ -838,7 +907,7 @@ class MergedDdosMitigation(app_manager.RyuApp):
                             out_port = s
 
                         actions = [bebaparser.OFPExpActionSetState(state=i,
-                                            table_id=table, hard_timeout=10),
+                                            table_id=table, hard_timeout=0),
                                    ofparser.OFPActionOutput(out_port)]
                         inst = [ofparser.OFPInstructionActions
                                 (ofproto.OFPIT_APPLY_ACTIONS, actions)]
@@ -852,13 +921,10 @@ class MergedDdosMitigation(app_manager.RyuApp):
         the monitoring thread
         Enable "ping" command """
         self.load_arp_icmp(datapath)
-        ## Load FSM (table0) for normal mode of operation
-        self.normal_FSM.load_fsm(datapath)
-        ## Load SYN counter (table1)
-        self.counter_engine.load_fsm(datapath)
-        ## Create a monitoring thread (each X seconds start the collection)
-        self.monitor_thread = hub.spawn(self._monitor)
-        LOG.info("Starting DDoS detection ...")
+
+        ## Load MATCH FSM and COUNTER FSM for normal mode of operation
+        self.match_normal_FSM.load_fsm(datapath)
+        self.counter_normal_FSM.load_fsm(datapath)
 
     def load_arp_icmp(self, datapath):
         match = ofparser.OFPMatch(eth_type = ether_types.ETH_TYPE_ARP)
@@ -932,20 +998,24 @@ class MergedDdosMitigation(app_manager.RyuApp):
         while True:
             # Send the states requests to the state tables
             for dp in self.datapaths.values():
+                LOG.info(dp.id)
                 self._request_stats(dp)
                 self.replies[dp.id] = 0
-
+            LOG.info("Sleeping for %d seconds..", MONITORING_SLEEP_TIME)
             hub.sleep(MONITORING_SLEEP_TIME)  # Wait X seconds
 
     def _request_stats(self, datapath):
         # for table in range(8):
         cookie = cookie_mask = 0
 
-        req = ofparser.OFPFlowStatsRequest(datapath, 0, 7,ofproto.OFPP_ANY,
-                                           ofproto.OFPG_ANY,cookie, cookie_mask)
+        req = ofparser.OFPFlowStatsRequest(datapath, 0, 7, ofproto.OFPP_ANY,
+                                        ofproto.OFPG_ANY, cookie, cookie_mask)
         datapath.send_msg(req)
+        LOG.info("%d %s Requested stats to switch %d" %
+                (time.mktime(time.localtime()),time.strftime("%d.%m. %H:%M:%S"),
+                 datapath.id))
 
-        for table in range(6):
+         for table in range(6):
             req = bebaparser.OFPExpStateStatsMultipartRequestAndDelete(datapath,
                                                                 table_id=table)
             datapath.send_msg(req)
@@ -954,6 +1024,7 @@ class MergedDdosMitigation(app_manager.RyuApp):
     def _state_stats_reply_handler(self, ev):
 
         msg = ev.msg
+
         datapath = msg.datapath
         # Retreive and store states stats information
         if (msg.body.experimenter==0XBEBABEBA):
@@ -1016,22 +1087,6 @@ class MergedDdosMitigation(app_manager.RyuApp):
             if (self.replies[datapath.id] == 6): # If we have all the replies
                 if (len(self.IPsrc)!=0): # if counters are != 0
                     self.entropy_computation(datapath)
-
-    @set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
-    def _flow_stats_reply_handler(self, ev):
-        """
-        Handler for processing of records from table
-        """
-        # OFPFlowStats instantes will be transformed to FlowStat objecsts
-        # and inserted to the list
-        #pdb.set_trace()
-        if len(ev.msg.body) == 0:
-            return
-
-        unknown_syn = int(ev.msg.body[0].packet_count)
-        new_flows = unknown_syn - self.old_unknown_syn
-        self.old_unknown_syn = unknown_syn
-        self.detect_syn_ddos(new_flows, ev.msg.datapath)
 
     def entropy_computation(self, datapath):
         # Port src dictionary = TCP + UDP Port src dictionaries
@@ -1115,10 +1170,37 @@ class MergedDdosMitigation(app_manager.RyuApp):
         else:
             return 0
 
+    @set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
+    def _flow_stats_reply_handler(self, ev):
+        """
+        Handler for processing of records from table
+        """
+        # OFPFlowStats instantes will be transformed to FlowStat objecsts
+        # and inserted to the list
+        #pdb.set_trace()
+        if len(ev.msg.body) == 0:
+            return
+
+        # LOG.info(ev.msg)
+
+        datapath = ev.msg.datapath
+
+        self.unknown_syn[datapath.id] = int(ev.msg.body[0].packet_count)
+        self.new_flows[datapath.id] = self.unknown_syn[datapath.id] - \
+                                      self.old_unknown_syn[datapath.id]
+
+        self.unknown_syn[datapath.id] - self.old_unknown_syn[datapath.id]
+
+        self.old_unknown_syn[datapath.id] = self.unknown_syn[datapath.id]
+        self.detect_syn_ddos(self.new_flows[datapath.id], datapath)
+
+        LOG.info("%d", self.unknown_syn[datapath.id] )
+
     def detect_syn_ddos(self,new_flows, datapath):
         # Traverse the list of all flows and compute the number of new flows
-        LOG.info("%d %s New flow count is %d" % (time.mktime(time.localtime()),
-                                time.strftime("%d.%m. %H:%M:%S"), new_flows))
+        LOG.info("%d %s New flow count for switch %d is %d" % (time.mktime
+                            (time.localtime()),time.strftime("%d.%m. %H:%M:%S"),
+                            datapath.id, new_flows))
         """
         A single detection is enough to trigger a global mitigation strategy.
         On the other side, mitigation mode is lifted only when ALL the switches
@@ -1144,22 +1226,24 @@ class MergedDdosMitigation(app_manager.RyuApp):
                 self._syn_return_to_normal_mode(self.datapaths.values())
 
     def _syn_mitigation(self, datapaths):
-        ## Load FSM (table0) for DDoS mitigation mode of operation
+        ## Load MATCH FSM and COUNTER FSM for DDoS mitigation mode of operation
         for dp in datapaths:
-            self.ddos_mtg_FSM.load_fsm(dp)
+            self.match_mtg_FSM.load_fsm(dp)
+            self.counter_mtg_FSM.load_fsm(dp)
             self.load_arp_icmp(dp)
             LOG.info("Mitigation FSM has been"\
-                    " loaded to Table 6 of datapath %d", dp.id)
+                    " loaded to Table 6 and 7 of datapath %d", dp.id)
         self.mitig_on = True
 
     def _syn_return_to_normal_mode(self, datapaths):
         ## Load FSM (table6) for normal mode of operation
         #self.clear_table(self.datapath,0)
         for dp in datapaths:
-            self.normal_FSM.load_fsm(dp)
+            self.match_normal_FSM.load_fsm(dp)
+            self.counter_normal_FSM.load_fsm(dp)
             self.load_arp_icmp(dp)
             LOG.info("Normal FSM has been"\
-                     " loaded to Table 6 of datapath %d", dp.id)
+                     " loaded to Table 6 and 7 of datapath %d", dp.id)
         self.mitig_on = False
 
     def _ddos_detected(self,flow_cnt):
