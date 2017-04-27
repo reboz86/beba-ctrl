@@ -16,6 +16,7 @@ import ryu.ofproto.beba_v1_0_parser as bebaparser
 # Time stamps for output messages
 import time
 import datetime
+import scipy.stats
 
 LOG = logging.getLogger('app.beba.merged_ddos')
 LOG.setLevel(logging.DEBUG)
@@ -29,15 +30,15 @@ MONITORING_SLEEP_TIME = 5
    # Enable/disable network-wide behavior of SYN detection
 ENABLE_NETWORK_WIDE_SYN_DETECTION = True
    # Local threshold for activation of SYN Mitigation
-LOCAL_SYN_DDOS_ACTIVE_THRESHOLD = 8000
+LOCAL_SYN_DDOS_ACTIVE_THRESHOLD = 500
    # Local threshold for deactivation of SYN Mitigation
-LOCAL_SYN_DDOS_INACTIVE_THRESHOLD = 6000
+LOCAL_SYN_DDOS_INACTIVE_THRESHOLD = 300
    # Global threshold for activation of SYN Mitigation
-GLOBAL_SYN_DDOS_ACTIVE_THRESHOLD = 16000
+GLOBAL_SYN_DDOS_ACTIVE_THRESHOLD = 600
    # Global threshold for activation of SYN Mitigation
-GLOBAL_SYN_DDOS_INACTIVE_THRESHOLD = 10000
+GLOBAL_SYN_DDOS_INACTIVE_THRESHOLD = 400
    # Timeout (in seconds) to increase the time of mitigation
-FIXED_TIMEOUT_TIME = 10 
+FIXED_TIMEOUT_TIME = 10
 
 # 1->small precision 68%; 2->medium precision 95%; 3->high precision 99,7%
 Precision = 3
@@ -606,6 +607,8 @@ class MergedDdosMitigation(app_manager.RyuApp):
 
         self.replies, self.unknown_syn, self.old_unknown_syn, self.new_flows = \
                                                         ({} for i in range(4))
+        self.pastIPsrc, self.pastIPdst, self.pastPortsrc, self.pastPortdst = \
+                                                        ({} for i in range(4))
 
         self.match_normal_FSM = FSM_T_MATCH_Normal()
         self.match_mtg_FSM = FSM_T_MATCH_Mtg()
@@ -659,6 +662,11 @@ class MergedDdosMitigation(app_manager.RyuApp):
                 self.new_flows[datapath.id] = 0
                 self.old_unknown_syn[datapath.id] = 0
 
+                self.pastIPsrc[datapath.id],self.pastIPdst[datapath.id],\
+                    self.pastPortsrc[datapath.id],\
+                    self.pastPortdst[datapath.id] = \
+                    ({} for i in range(4))
+
                 self.Entropy_IPsrc[datapath.id],\
                     self.Entropy_IPdst[datapath.id],\
                     self.Entropy_Portsrc[datapath.id],\
@@ -683,6 +691,12 @@ class MergedDdosMitigation(app_manager.RyuApp):
                     self.Entropy_Portsrc[datapath.id],\
                     self.Entropy_Portdst[datapath.id],\
                     self.Abscisse_time[datapath.id]
+
+                del self.pastIPsrc[datapath.id],\
+                    self.pastIPdst[datapath.id],\
+                    self.pastPortsrc[datapath.id],\
+                    self.pastPortdst[datapath.id]
+
 
     def configureSwitch(self, datapath):
 
@@ -1010,7 +1024,6 @@ class MergedDdosMitigation(app_manager.RyuApp):
         while True:
             # Send the states requests to the state tables
             for dp in self.datapaths.values():
-                LOG.info(dp.id)
                 self._request_stats(dp)
                 self.replies[dp.id] = 0
             LOG.info("Sleeping for %d seconds..", MONITORING_SLEEP_TIME)
@@ -1023,9 +1036,9 @@ class MergedDdosMitigation(app_manager.RyuApp):
         req = ofparser.OFPFlowStatsRequest(datapath, 0, 7, ofproto.OFPP_ANY,
                                         ofproto.OFPG_ANY, cookie, cookie_mask)
         datapath.send_msg(req)
-        LOG.info("%d %s Requested stats to switch %d" %
-                (time.mktime(time.localtime()),time.strftime("%d.%m. %H:%M:%S"),
-                 datapath.id))
+        #LOG.info("%d %s Requested stats to switch %d" %
+        #        (time.mktime(time.localtime()),time.strftime("%d.%m. %H:%M:%S"),
+        #         datapath.id))
         for table in range(6):
             req = bebaparser.OFPExpStateStatsMultipartRequestAndDelete(datapath,
                                                                 table_id=table)
@@ -1035,13 +1048,12 @@ class MergedDdosMitigation(app_manager.RyuApp):
     def _state_stats_reply_handler(self, ev):
 
         msg = ev.msg
-
         datapath = msg.datapath
         # Retreive and store states stats information
         if (msg.body.experimenter==0XBEBABEBA):
             if (msg.body.exp_type==bebaproto.OFPMP_EXP_STATE_STATS_AND_DELETE):
                 data = msg.body.data
-                state_stats_list = bebaparser.OFPStateStats.parser(data, 0)
+                state_stats_list = bebaparser.OFPStateStats.parser(msg, 0)
                 if (state_stats_list != 0):
                     self.replies[datapath.id] += 1
                     for index in range(len(state_stats_list)):
@@ -1095,9 +1107,18 @@ class MergedDdosMitigation(app_manager.RyuApp):
                 else:
                     LOG.info("No data")
 
+               # LOG.info("EXP from switch %d : %d features : %d bytes",
+               #     msg.datapath.id,len(state_stats_list),len(msg.body.data))
+
             if (self.replies[datapath.id] == 6): # If we have all the replies
-                if (len(self.IPsrc)!=0): # if counters are != 0
+                if (len(self.IPsrc)!=0 and len(self.pastIPsrc[datapath.id])!=0):
+                    # if counters are != 0
                     self.entropy_computation(datapath)
+                else:
+                    self.pastIPsrc[datapath.id] = self.IPsrc.copy()
+                    self.pastIPdst[datapath.id] = self.IPdst.copy()
+                    self.pastPortsrc[datapath.id] = self.Portsrc.copy()
+                    self.pastPortdst[datapath.id] = self.Portdst.copy()
 
     def entropy_computation(self, datapath):
         # Port src dictionary = TCP + UDP Port src dictionaries
@@ -1116,10 +1137,24 @@ class MergedDdosMitigation(app_manager.RyuApp):
                 self.Portdst[index] = self.UDPPortdst[index]
 
         #Entropy calculation:
+        """
         entropy_ip_src = self.entropy(self.IPsrc)
         entropy_ip_dst = self.entropy(self.IPdst)
         entropy_port_src = self.entropy(self.Portsrc)
         entropy_port_dst = self.entropy(self.Portdst)
+        """
+        entropy_ip_src = self.kullback_distance(
+            sorted(self.IPsrc.values(), reverse=True),
+            sorted(self.pastIPsrc[datapath.id].values(),reverse=True))
+        entropy_ip_dst = self.kullback_distance(
+            sorted(self.IPdst.values(), reverse=True),
+            sorted(self.pastIPdst[datapath.id].values(),reverse=True))
+        entropy_port_src = self.kullback_distance(
+            sorted(self.Portsrc.values(),reverse=True),
+            sorted(self.pastPortsrc[datapath.id].values(),reverse=True))
+        entropy_port_dst = self.kullback_distance(
+            sorted(self.Portdst.values(),reverse=True),
+            sorted(self.pastPortdst[datapath.id].values(),reverse=True))
 
         # Storing entropies in lists:
         self.Entropy_IPsrc[datapath.id].append(entropy_ip_src)
@@ -1131,13 +1166,13 @@ class MergedDdosMitigation(app_manager.RyuApp):
         self.storeInFile(datapath)
 
         # Printing the entropies:
-        LOG.info('===========================================')
         LOG.info("%d %s Entropy values for switch %d : %f %f %f %f"
                  % (time.mktime(time.localtime()),
                     time.strftime("%d.%m. %H:%M:%S"),
                     datapath.id,
                     entropy_ip_src, entropy_ip_dst,
                     entropy_port_src, entropy_port_dst))
+        LOG.info('===========================================')
 
         """
         Detection process
@@ -1148,6 +1183,11 @@ class MergedDdosMitigation(app_manager.RyuApp):
         and sum(self.Entropy_IPsrc[datapath.id]) > 1):
             self.detection(datapath)
 
+        self.pastIPsrc[datapath.id] = self.IPsrc.copy()
+        self.pastIPdst[datapath.id] = self.IPdst.copy()
+        self.pastPortsrc[datapath.id] = self.Portsrc.copy()
+        self.pastPortdst[datapath.id] = self.Portdst.copy()
+
         # Emptying dictionaries
         self.IPsrc.clear()
         self.IPdst.clear()
@@ -1157,6 +1197,7 @@ class MergedDdosMitigation(app_manager.RyuApp):
         self.TCPPortdst.clear()
         self.UDPPortsrc.clear()
         self.UDPPortdst.clear()
+
 
     def mean(self, mylist):
         return float(sum(mylist))/len(mylist) if len(mylist)>0 else float('nan')
@@ -1181,6 +1222,11 @@ class MergedDdosMitigation(app_manager.RyuApp):
         else:
             return 0
 
+    def kullback_distance(self, dict1, dict2):
+        #truncate the longer dict in ordert to calculate KL-distance
+        min_val = min(len(dict1), len(dict2))
+        return scipy.stats.entropy(dict1[:min_val], dict2[:min_val], base=2)
+
     @set_ev_cls(ofp_event.EventOFPFlowStatsReply, MAIN_DISPATCHER)
     def _flow_stats_reply_handler(self, ev):
         """
@@ -1192,8 +1238,7 @@ class MergedDdosMitigation(app_manager.RyuApp):
         if len(ev.msg.body) == 0:
             return
 
-        # LOG.info(ev.msg)
-
+        #LOG.info("FLOW: %d",ev.msg.body[0].byte_count )
         datapath = ev.msg.datapath
 
         self.unknown_syn[datapath.id] = int(ev.msg.body[0].packet_count)
@@ -1205,7 +1250,7 @@ class MergedDdosMitigation(app_manager.RyuApp):
         self.old_unknown_syn[datapath.id] = self.unknown_syn[datapath.id]
         self.detect_syn_ddos(self.new_flows[datapath.id], datapath)
 
-        LOG.info("%d", self.unknown_syn[datapath.id] )
+        # LOG.info("%d", self.unknown_syn[datapath.id] )
 
     def detect_syn_ddos(self,new_flows, datapath):
         # Traverse the list of all flows and compute the number of new flows
@@ -1266,21 +1311,24 @@ class MergedDdosMitigation(app_manager.RyuApp):
             - dpid          = datapath ID
         Return: True if ddos treshold has been detected
         """
-        # The following code checks local and global threshold of all switches to make
-        # a decission about SYN flood in the network. Two modes are available:
-        # 1) Local only - in this mode, the SYN DoS is detected based on the local value of
-        #                 new SYN packets
-        # 2) Network-wide - in this mode, we use last SYN counts from all switches for 
-        #                   the decision about SYN flood in the network. This mode is used
-        #                   iff the ENABLE_NETWORK_WIDE_SYN_DETECTION variable is True.  
+        # The following code checks local and global threshold of all switches
+        # to take a decission about SYN flood in the network. Two modes are
+        # available:
+        # 1) Local only - in this mode, the SYN DoS is detected based on the
+        #                 local value of new SYN packets
+        # 2) Network-wide - in this mode, we use last SYN counts from all
+        #                   switches for the decision about SYN flood in the
+        #                   network. This mode is used iff the
+        #                   ENABLE_NETWORK_WIDE_SYN_DETECTION variable is True.
         if (ENABLE_NETWORK_WIDE_SYN_DETECTION and \
-            sum(self.new_flows.itervalues()) >= GLOBAL_SYN_DDOS_INACTIVE_THRESHOLD) or \
-            flow_cnt >= LOCAL_SYN_DDOS_INACTIVE_THRESHOLD:
+            sum(self.new_flows.itervalues()) >=
+            GLOBAL_SYN_DDOS_ACTIVE_THRESHOLD) or \
+            flow_cnt >= LOCAL_SYN_DDOS_ACTIVE_THRESHOLD:
 
-            LOG.info("%d %s Active threshold reached on switch %d" % (time.mktime(time.localtime()),
-                               time.strftime("%d.%m. %H:%M:%S"), dpid))
+            LOG.info("%d %s Active threshold reached on switch %d %d"
+                     % (time.mktime(time.localtime()),
+                        time.strftime("%d.%m. %H:%M:%S"), dpid, flow_cnt))
             return True
-  
         return False
 
     def _ddos_finished(self,flow_cnt,dpid):
@@ -1292,16 +1340,19 @@ class MergedDdosMitigation(app_manager.RyuApp):
             - dpid          = datapath ID
         Return: True if ddos treshold has been reached.
         """
-        local_threshold = True if flow_cnt <= LOCAL_SYN_DDOS_INACTIVE_THRESHOLD else False
-        global_threshold = True if sum(self.new_flows.itervalues()) <= GLOBAL_SYN_DDOS_INACTIVE_THRESHOLD else False
+        local_threshold = True if flow_cnt <= LOCAL_SYN_DDOS_INACTIVE_THRESHOLD\
+                          else False
+        global_threshold = True if sum(self.new_flows.itervalues()) <= \
+                           GLOBAL_SYN_DDOS_INACTIVE_THRESHOLD else False
 
-        if (ENABLE_NETWORK_WIDE_SYN_DETECTION and local_threshold and global_threshold) or \
+        if (ENABLE_NETWORK_WIDE_SYN_DETECTION and local_threshold and
+            global_threshold) or \
            (not ENABLE_NETWORK_WIDE_SYN_DETECTION and local_threshold):
 
-            LOG.info("%d %s Inactive threshold reached on switch %d" % (time.mktime(time.localtime()),
-                               time.strftime("%d.%m. %H:%M:%S"), dpid))
+            LOG.info("%d %s Inactive threshold reached on switch %d"
+                     % (time.mktime(time.localtime()),
+                        time.strftime("%d.%m. %H:%M:%S"), dpid))
             return True
-
         return False
 
     def is_mitigation_finished(self):
@@ -1641,17 +1692,16 @@ class MergedDdosMitigation(app_manager.RyuApp):
         actions = []
 
         match = ofparser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP,
-                                  ipv4_src=ipaddress,
-                                  ip_proto=in_proto.IPPROTO_TCP)
-        self.add_flow(datapath=datapath, table_id=0, priority=100,
-                      match=match, actions=actions)
+                                  ipv4_src=ipaddress)
+        # self.add_flow(datapath=datapath, table_id=0, priority=101, match=match,
+        #              actions=actions, hard_timeout=FIXED_TIMEOUT_TIME)
 
-        match = ofparser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP,
-                                  ipv4_src=ipaddress,
-                                  ip_proto=in_proto.IPPROTO_UDP)
+        # match = ofparser.OFPMatch(eth_type=ether_types.ETH_TYPE_IP,
+        #                          ipv4_src=ipaddress,
+        #                          ip_proto=in_proto.IPPROTO_UDP)
         #timeout set to FIXED_TIMEOUT_TIME
-        self.add_flow(datapath=datapath, table_id=0, priority=100, match=match,
-                      actions=actions, hard_timeout=FIXED_TIMEOUT_TIME)
+        #self.add_flow(datapath=datapath, table_id=0, priority=100, match=match,
+        #              actions=actions, hard_timeout=FIXED_TIMEOUT_TIME)
 
         LOG.info('\033[94m** Blackholing the attacker IP...'\
                     ' control message sent'\
